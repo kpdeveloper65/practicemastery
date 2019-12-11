@@ -1,0 +1,180 @@
+/* Sliding Subnav Styles */
+ul#topnav {
+	margin: 0; padding: 0;
+	/*float: left;*/
+	/*width: 990px;*/
+	list-style: none;
+	position: relative;
+	font-size: 13px;
+	 font-family: 'NeutraTextBold';
+	text-transform:uppercase;
+	font-weight:bold;
+	z-index:999;
+	/*background:url(images/topnav_s.gif) repeat-x;*/
+}
+ul#topnav li {
+	float: left;
+	height:44px;
+	margin: 0;
+	padding: 0 1px 0 1px;
+	background:url(../images/nav_dvder.png) right top no-repeat !important;
+	/*border-right: 1px solid #555;*/
+}
+ul#topnav li a {
+	padding: 0px 15px;
+	display: block;
+	color: #f0f0f0;
+	text-decoration: none;
+	height:44px;
+	line-height:45px;
+	font-weight:bold;
+	/*background:none;*/
+	__float:left;
+}
+ul#topnav li a.first {
+	padding: 0px 15px;
+	display: block;
+	color: #000000;
+	text-decoration: none;
+	height:44px;
+	line-height:45px;
+	font-weight:bold;
+	/*background:none;*/
+	__float:left;
+}
+ul#topnav li a:hover{
+	color: #f0f0f0;
+	text-decoration:none;
+	height:43px;
+	line-height:45px;
+	background:url(../images/nav-hover43.png) left top repeat-x transparent;
+	font-weight:bold;
+}
+ul#topnav li a em:hover{
+	text-decoration: underline;
+}
+
+ul#topnav li:hover { background: none; }
+ul#topnav li span {
+	height:37px;
+	float: left;
+	padding: 0;
+	position: absolute;
+	/*left: 0;*/ top:43px;
+	display: none;
+	/*width: 970px;*/
+	/*width:100%;*/
+	background: #626262;
+	color: #fff;
+	/*-moz-border-radius-bottomright: 5px;
+	-khtml-border-radius-bottomright: 5px;
+	-webkit-border-bottom-right-radius: 5px;
+	-moz-border-radius-bottomleft: 5px;
+	-khtml-border-radius-bottomleft: 5px;
+	-webkit-border-bottom-left-radius: 5px;*/
+}
+ul#topnav li:hover span { display: block; __left:10px; }
+ul#topnav li span a {
+	display: inline; margin:0 0px; padding:0px; __float:left;
+	__width:auto; padding-left:11px;
+	    height: 37px;
+    line-height: 37px;
+}
+ul#topnav li span a:hover {
+	text-decoration: none; border-bottom:solid 1px #898989; background:transparent;
+	background:url(../images/arro.png) left center no-repeat;
+	font-weight:bold;
+	__float:left;
+	__display:inline;
+	height: 37px;
+    line-height: 37px;
+ }
+/* End Sliding Subnav Styles */
+/*For top menu*/
+/*#navbar {
+    font-family: 'NeutraTextBold';
+    font-size: 13px;
+    font-weight: bold;
+    margin: 0;
+    padding: 0;
+	z-index: 1;
+}
+#navbar li {
+    background: url("../images/nav_dvder.png") no-repeat scroll right top transparent;
+    float: left;
+    height: 44px;
+    list-style: none outside none;
+    padding: 0 1px;
+}
+#navbar li a {
+    color: #F0F0F0;
+    display: block;
+    font-weight: bold;
+    height: 44px;
+    line-height: 45px;
+    padding: 0 15px;
+    text-decoration: none;
+    text-transform: uppercase;
+}
+#navbar li a:hover {
+    background: url("../images/nav-hover43.png") repeat-x scroll left top transparent;
+    color: #F0F0F0;
+    font-weight: bold;
+    height: 44px;
+    line-height: 45px;
+    text-decoration: none;
+}
+#navbar li ul {
+    background: none repeat scroll 0 0 #626262;
+    color: #FFFFFF;
+    display: none;
+    height: 37px;
+    padding: 0;
+}
+#navbar li:hover ul, #navbar li.hover ul {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+}
+#navbar li:hover li, #navbar li.hover li {
+    float: left;
+}
+#navbar li:hover li a, #navbar li.hover li a {
+    color: #F0F0F0;
+}
+#navbar li li a:hover {
+    background: url("../images/arro.png") no-repeat scroll left center transparent;
+    border-bottom: 1px solid #898989;
+    color: #F0F0F0;
+    font-weight: bold;
+    height: 37px;
+    line-height: 37px;
+    text-decoration: none;
+}
+#navbar li ul li {
+    background: none repeat scroll 0 0 transparent;
+    float: left;
+    height: 37px;
+    list-style: none outside none;
+    padding: 0 1px;
+}
+#navbar li li a {
+    background: none repeat scroll 0 0 transparent;
+    color: #F0F0F0;
+    display: inline;
+    font-weight: bold;
+    height: 37px;
+    line-height: 37px;
+    margin: 0 12px;
+    padding: 0 0 0 0px;
+    text-decoration: none;
+    text-transform: uppercase;
+}*/
+.sitehome, .icon-faq, .icon-members, .icon-home, .icon-ucp, .icon-register, .icon-logout, .icon-bookmark, .icon-bump, .icon-subscribe, .icon-unsubscribe, .icon-pages, .icon-search {
+    background-image: none;
+    background-position: 0 50%;
+    background-repeat: no-repeat;
+    padding: 1px 0 0 17px;
+}
+/*top menu css end*/

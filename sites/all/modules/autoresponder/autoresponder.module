@@ -1,0 +1,1604 @@
+<?php
+
+// $Id: autoresponder.module,v 1.7.4.7 2010/02/22 21:31:40 cyberpunk Exp $
+
+function autoresponder_perm() {
+  return array('configure autoresponder', 'autoresponder massmail');
+}
+
+function autoresponder_menu() {
+  $items = array();
+  global $user;
+  $items['autoresponder/unsubscribe'] = array(
+    'access callback' => TRUE,
+    'page callback' => 'autoresponder_user_unsubscribe',
+    'type' => MENU_CALLBACK
+  );
+  $items['autoresponder/mail'] = array(
+    'access callback' => TRUE,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('autoresponder_mail_show_form'),
+    'title' => 'View message',
+    'type' => MENU_CALLBACK
+  );
+  $items['admin/settings/autoresponder'] = array(
+    'title' => 'Autoresponder',
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => '_autoresponder_admin_menu_block_page',
+    'description' => 'Autoresponder control panel'
+  );
+  $items['admin/settings/autoresponder/settings'] = array(
+    'title' => 'Autoresponder settings',
+    'access arguments' => array('autoresponder settings'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('autoresponder_admin_settings'),
+    'description' => 'Settings',
+    'weight' => 7
+  );
+  $items['admin/settings/autoresponder/massmailer'] = array(
+    'title' => 'Mass-Mailer',
+    'access arguments' => array('autoresponder massmail'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('autoresponder_set_massmail_form'),
+    'description' => 'Sets/Subscribers/Roles mass-mailer'
+  );
+  $items['admin/settings/autoresponder/massmailer/sets'] = array(
+    'title' => 'Sets mass-mailing',
+    'access arguments' => array('autoresponder massmail'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('autoresponder_set_massmail_form'),
+    'weight' => 0
+  );
+  $items['admin/settings/autoresponder/massmailer/role'] = array(
+    'title' => 'Role mass-mailing',
+    'access arguments' => array('autoresponder massmail'),
+    'type' => MENU_LOCAL_TASK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('autoresponder_role_massmail_form'),
+    'weight' => 1
+  );
+  $items['admin/settings/autoresponder/massmailer/all'] = array(
+    'title' => 'All subscribers mass-mailing',
+    'access arguments' => array('autoresponder massmail'),
+    'type' => MENU_LOCAL_TASK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('autoresponder_all_massmail_form'),
+    'weight' => 2
+  );
+
+  $items['admin/settings/autoresponder/user/list'] = array(
+    'title' => 'Users',
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_user_list',
+    'page arguments' => array(4, 5),
+    'description' => 'Subscribers overview',
+    'weight' => 0
+  );
+  $items['admin/settings/autoresponder/user/edit'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_user_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+    'weight' => 1
+  );
+  $items['admin/settings/autoresponder/user/delete'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_user_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['admin/settings/autoresponder/mail/list'] = array(
+    'title' => 'Messages',
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_mail_list',
+    'page arguments' => array(4, 5),
+    'description' => 'Messages overview',
+    'weight' => 2
+  );
+  $items['admin/settings/autoresponder/mail/add'] = array(
+    'title' => 'Add message',
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_mail_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 3
+  );
+  $items['admin/settings/autoresponder/mail/edit'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_mail_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/settings/autoresponder/mail/delete'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_mail_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/settings/autoresponder/set/list'] = array(
+    'title' => 'Sets',
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_set_list',
+    'page arguments' => array(4, 5),
+    'description' => 'E-mails sets overview',
+    'weight' => 4
+  );
+
+  $items['admin/settings/autoresponder/set/add'] = array(
+    'title' => 'Add set',
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_set_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 5
+  );
+  $items['admin/settings/autoresponder/set/activate'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_set_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/settings/autoresponder/set/deactivate'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_set_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/settings/autoresponder/set/edit'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_set_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+  );
+  $items['admin/settings/autoresponder/set/delete'] = array(
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_set_list',
+    'page arguments' => array(4, 5),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['admin/settings/autoresponder/status'] = array(
+    'title' => 'Status',
+    'access arguments' => array('configure autoresponder'),
+    'page callback' => 'autoresponder_status',
+    'description' => 'Status of e-mails sending. Manual mailing.',
+    'weight' => 6
+  );
+ return $items;
+}
+
+function autoresponder_admin_settings() {
+  $form['block_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Block settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $form['block_settings']['autoresponder_select_type'] = array(
+    '#type' => 'select',
+    '#title' => 'Set selecting style',
+    '#default_value' => variable_get('autoresponder_select_type', 'select'),
+    '#options' => array('select' => t('Dropdown list'), 'checkboxes' => t('Multiple select list'))
+  );
+  if (db_result(db_query('SELECT COUNT(*) FROM {autoresponder_sets}')) > 1) {
+    $hide = TRUE;
+  }
+  $form['block_settings']['autoresponder_hide_select'] = array(
+    '#type' => 'checkbox',
+    '#title' => 'Hide select',
+    '#disabled' => $hide,
+    '#default_value' => variable_get('autoresponder_hide_select', FALSE),
+    '#description' => t('Hide select list control and show only text description of set if only one set is  present.')
+  );
+  $form['block_settings']['autoresponder_hide_email'] = array(
+    '#type' => 'checkbox',
+    '#title' => 'Hide e-mail',
+    '#default_value' => variable_get('autoresponder_hide_email', FALSE),
+    '#description' => t('Hide e-mail, if authenticated user')
+  );
+  $form['block_settings']['autoresponder_hide_sets'] = array(
+    '#type' => 'checkbox',
+    '#title' => 'Hide sets list',
+    '#default_value' => variable_get('autoresponder_hide_sets', FALSE),
+    '#description' => t('Hide subscribed sets list')
+  );
+  $form['general_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('General settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $form['general_settings']['show_on_user_register'] = array(
+    '#type' => 'checkbox',
+    '#title' => 'Show on user registration page',
+    '#default_value' => variable_get('show_on_user_register', TRUE),
+    '#description' => t('Display a list of sets to subscribe on user registration page. It will be shown only if at least one active set exists.')
+  );
+  $form['general_settings']['autoresponder_footer'] = array(
+    '#type' => 'textarea',
+    '#title' => 'Message footer',
+    '#description' => t('Footer that will be included in every message. Use predefined variables !url_unsubscribe for unsubscribe link and !url_view for link to view email on this site'),
+    '#default_value' => variable_get('autoresponder_footer', "<br /><small>-------------------------<br />To view this message in the web follow this link <a href='!url_view'>!url_view</a></small>
+       <br /><small>To unsubscribe from the list follow this link <a href='!url_unsubscribe'>!url_unsubscribe</a></small>")
+  );
+  $form['default_set_settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Default set settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+  $form['default_set_settings']['autoresponder_default_set_active'] = array(
+    '#type' => 'checkbox',
+    '#title' => 'Activate the default set assignment',
+    '#default_value' => variable_get('autoresponder_default_set_active', false),
+  );
+  $form['default_set_settings']['autoresponder_default_set'] = array(
+    '#type' => 'select',
+    '#title' => 'Default set to assign',
+    '#options' => array(0 => '<empty>') + _autoresponder_get_sets(),
+    '#default_value' => variable_get('autoresponder_default_set', 0),
+  );
+
+  return system_settings_form($form);
+}
+
+function autoresponder_status() {
+  return drupal_get_form('autoresponder_status_form');
+}
+
+function autoresponder_status_form($form_state) {
+  $emails_sent = variable_get('emails_sent', time());
+  if ($emails_sent == 0) {
+    $date = t('Never');
+  }
+  else {
+    $date = date('F j, Y, g:i a', $emails_sent);
+  }
+  $form['status'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Status'),
+  );
+  $form['status']['emails_sent'] = array(
+    '#value' => 'Last mailing time: <i>'.$date.'</i><br /><br />'
+  );
+  $form['status']['send'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send manually')
+  );
+  return $form;
+}
+
+function autoresponder_status_form_submit($form, &$form_state) {
+  variable_set('emails_sent', 0);
+  autoresponder_cron();
+  drupal_set_message(t('E-Mails successfully sent!'));
+}
+
+
+function autoresponder_user_unsubscribe() {
+  return drupal_get_form('autoresponder_user_unsubscribe_confirm_form');
+}
+
+function autoresponder_user_unsubscribe_confirm_form() {
+  global $user;
+  $id = arg(2);
+  $uid = arg(3);
+  $hash = arg(4);
+  $result = db_query('SELECT email FROM {autoresponder_users} WHERE id = %d', $uid);
+  $m = db_result($result);
+  if ($m != $user->mail && $user->uid != 0) {
+    return drupal_access_denied();
+  }
+  if (md5($m) != $hash && $user->uid == 0) {
+    return drupal_access_denied();
+  }
+  if ($id) {
+    $result = db_query_range('SELECT a.*, at.name, au.email
+      FROM {autoresponder} AS a
+      LEFT JOIN {autoresponder_sets} AS at ON a.setid = at.id
+      LEFT JOIN {autoresponder_users} AS au ON a.uid = au.id
+      WHERE at.id = %d AND au.id = %d
+      ', $id, $uid, 0, 1);
+
+    if ($us = db_fetch_object($result)) {
+      $form = array();
+      $form['id'] = array(
+        '#type' => 'value',
+        '#value' => $id
+      );
+      $form['uid'] = array(
+        '#type' => 'value',
+        '#value' => $uid
+      );
+      $form['email'] = array(
+        '#type' => 'value',
+        '#value' => $us->email
+      );
+      $form['set'] = array(
+        '#type' => 'value',
+        '#value' => $us->name
+      );
+      $z = confirm_form(
+        $form,
+        t('Are you sure you want to unsubscribe \'<i>'.$us->email.'</i>\' from mailing list \'<i>'.$us->name.'</i>\'?'),
+        '',
+        t('This action cannot be undone.'),
+        t('Unsubscribe'), t('Cancel'));
+      return $z;
+    }
+    else {
+      drupal_goto();
+    }
+ }
+ else
+  drupal_goto();
+}
+
+function autoresponder_user_unsubscribe_confirm_form_submit($form, &$form_state) {
+  db_query('DELETE FROM {autoresponder} WHERE setid = %d AND uid = %d', $form_state['values']['id'], $form_state['values']['uid']);
+  drupal_set_message(t('Successfully unsubscribed %email from %set mailing list!', array('%email' => $form_state['values']['email'], '%set' => $form_state['values']['set'])));
+  $result = db_query('SELECT COUNT(uid) FROM {autoresponder} WHERE uid = %d', $form_state['values']['uid']);
+  if (!db_result($result))
+    db_query('DELETE FROM {autoresponder_users} WHERE id = %d', $form_state['values']['uid']);
+  drupal_goto();
+}
+
+function autoresponder_cron() {
+ $messages_count = 0;
+ $user_count = 0;
+ $emails_sent = variable_get('emails_sent', 0);
+ if ((time() - $emails_sent) > (60*60*24) || $emails_sent == 0) {
+   $result_users = db_query('SELECT a.*, at.name, au.email, au.reg_date
+     FROM {autoresponder} AS a
+     LEFT JOIN {autoresponder_sets} AS at ON a.setid = at.id
+     LEFT JOIN {autoresponder_users} AS au ON a.uid = au.id
+     WHERE at.active = 1
+   ');
+   while ($u = db_fetch_object($result_users)) {
+     $day = floor((time() - $u->reg_date) / (60*60*24));
+     if (!$day) {
+       continue;
+     }
+     $result_messages = db_query('SELECT * FROM {autoresponder_messages} WHERE day = %d AND mset = %d', $day, $u->setid);
+     while ($message = db_fetch_object($result_messages)) {
+       if (autoresponder_mail($u, $message)) {
+         $messages_count = $messages_count + 1;
+       }
+     }
+    $user_count = $user_count + 1;
+  }
+  variable_set('emails_sent', time());
+  watchdog('autoresponder', 'Mass mailing: '.$messages_count.' e-mail(s) sent to '.$user_count.' user(s)');
+ }
+}
+
+/*
+  * Mail sending function. Code taken from Simple News module with small customizations. HTML to text conversion by code from HTML2TXT module
+  */
+function autoresponder_mail($u, $mail) {
+  $mail->to = isset($u->mail) ? $u->mail : $u->email;
+  $from_email = isset($mail->from_address) ? $mail->from_address : variable_get('site_mail', ini_get('sendmail_from'));
+  $from = isset($mail->from_name) ? '"'. addslashes($mail->from_name).'" <'. $from_email .'>' : $from_email;
+
+  $headers = array(
+    'Reply-To' => $from_email,
+    'X-Mailer' => 'Drupal',
+    'Return-Path' => $from_email,
+    'Errors-To' => $from_email,
+  );
+
+  $plain_text_only = FALSE;
+  $plain_text_body = autoresponder_html_to_text($mail->body, array());
+  $hash = md5($mail->to);
+  $url_unsubscribe = url('autoresponder/unsubscribe/'.$u->setid.'/'.$u->uid.'/'.$hash, array('absolute' => TRUE));
+  $url_view = url('autoresponder/mail/'.$u->setid.'/'.$mail->id.'/'.$u->uid.'/'.$hash, array('absolute' => TRUE));
+  $footer = t(variable_get('autoresponder_footer', "<br /><small>-------------------------<br />To view this message in the web follow this link <a href='!url_view'>!url_view</a></small><br /><small>To unsubscribe from the list follow this link <a href='!url_unsubscribe'>!url_unsubscribe</a></small>"), array('!url_view' => $url_view, '!url_unsubscribe' => $url_unsubscribe));
+  $mail->body .= $footer;
+  watchdog('autoresponder', "Email sended to <i>$mail->to</i> with subject <i>$mail->subject</i>");
+  return mimemail($from, $mail->to, $mail->subject, $mail->body, $plain_text_only, $headers, $plain_text_body);
+}
+
+function autoresponder_mail_show_form($form_state) {
+  $sid = arg(2);
+  $mid = arg(3);
+  $uid = arg(4);
+  $hash = arg(5);
+  if (!$sid || !$mid || !$hash || !$uid) {
+    return drupal_not_found();
+  }
+  // Check if message exists
+  $sql = 'SELECT * FROM {autoresponder_messages} WHERE id = %d AND mset = %d';
+  $result = db_query_range($sql, $mid, $sid, 0, 1);
+  if (!($message = db_fetch_object($result))) {
+    return drupal_not_found();
+  }
+  // Check if user exists and subscribed to this message
+  $sql = 'SELECT aus.email FROM {autoresponder} a LEFT JOIN {autoresponder_users} aus ON a.uid = aus.id WHERE a.uid = %d AND a.setid = %d';
+  $result = db_query($sql, $uid, $sid);
+  if (!($u = db_fetch_object($result)))
+    return drupal_not_found();
+  if (md5($u->email) != $hash)
+    return drupal_access_denied();
+
+  $form['subject'] = array(
+    '#type' => 'item',
+    '#title' => 'Subject',
+    '#value' => $message->subject
+  );
+  $form['day'] = array(
+    '#type' => 'item',
+    '#title' => 'Day',
+    '#value' => $message->day
+  );
+  $form['body'] = array(
+    '#type' => 'item',
+    '#title' => 'Body',
+    '#value' => $message->body
+  );
+  return $form;
+}
+
+function autoresponder_html_to_text($txt, $inline) {
+  $pattern = '@(<a href="(.\S+?)"[^>]*>(.+?)</a>)@ei';
+  if ($inline) {
+    $txt = preg_replace($pattern, "_autoresponder_mail_uri('\\2', '\\3')", $txt);
+  }
+  else {
+    $txt = preg_replace($pattern, "'\\3 ['. _autoresponder_mail_urls('\\2') .']'", $txt);
+    $urls = _autoresponder_mail_urls();
+    if (count($urls)) {
+      $txt .= "\n";
+      $i = 0;
+      for ($max = count($urls); $i < $max; $i++) {
+        $txt .= '['. ($i + 1) .'] '. $urls[$i] ."\n";
+      }
+    }
+    _autoresponder_mail_urls(0, TRUE);
+  }
+
+  // some basic html to text conversion
+  $txt = preg_replace(_autoresponder_define_search(), _autoresponder_define_replace(), $txt);
+  $txt = preg_replace("/\n\s+\n/", "\n\n", $txt);
+  $txt = strip_tags($txt);
+  $txt = decode_entities($txt);
+  return wordwrap($txt, 80);
+}
+
+function _autoresponder_get_sets($op = 'name') {
+  $sql = "SELECT * FROM {autoresponder_sets}";
+  $result = db_query($sql);
+  $sets = array();
+  while ($set = db_fetch_object($result)) {
+    if ($set->active) {
+      $sets[$set->id] = $set->name;
+      $sets_descr[$set->id] = $set->description;
+    }
+  }
+  if ($op == 'name') {
+    return $sets;
+  }
+  if ($op == 'description') {
+    return $sets_descr;
+  }
+}
+
+function _autoresponder_mail_uri($href, $link) {
+  $href = _autoresponder_mail_url($href);
+  if ($href == $link) {
+    $output =  '['. $href.']';
+  }
+  else {
+    $output = $link.' ['. $href.']';
+  }
+  return $output;
+}
+
+function _autoresponder_mail_url($url) {
+  if (preg_match('@://@', $url)) {
+    return $url;
+  }
+  elseif (preg_match('!mailto:!i', $url)) {
+    return str_replace('mailto:', '', $url);
+  }
+  else {
+    return url($url, array('absolute' => TRUE));
+  }
+}
+
+function _autoresponder_mail_urls($url = 0, $refresh = FALSE) {
+  static $urls = array();
+  if ($refresh) {
+    $urls = array();
+  }
+  if ($url) {
+    $urls[] = _autoresponder_mail_url($url);
+    return count($urls);
+  }
+  return $urls;
+}
+
+/**
+ *  List of preg* regular expression patterns to search for,
+ *  used in conjunction with $replace.
+ *  Based on / modified from html2txt.module
+ */
+function _autoresponder_define_search() {
+
+    $search = array(
+        "/\r/",                                       // Non-legal carriage return
+        "/[\t]+/",                                    // tabs
+        '/<script[^>]*>.*?<\/script>/i',              // <script>s -- which strip_tags supposedly has problems with
+        '!<h[12][^>]*>(.+?)</h[12]>!ie',              // H1 - H2
+        '/<h3[^>]*>(.+?)<\/h3>/ie',                   // H3
+        '/<h[456][^>]*>(.+?)<\/h[456]>/ie',           // H4 - H6
+        '!<blockquote[^>]*>!i',                       // <blockquote>
+        '!</blockquote>!i',                           // </blockquote>
+        '!</?p[^>]*>!i',                              // <p>
+        "/<br[^>]*>\n?/i",                            // <br>
+        '!</?(b|strong)[^>]*>!i',                     // <b> and <strong>
+        '!</?(em|i)[^>]*>!i',                         // <em> and <i>
+        '/(<ul[^>]*>|<\/ul>)/i',                      // <ul> and </ul>
+        '/(<ol[^>]*>|<\/ol>)/i',                      // <ol> and </ol>
+        '/(<dl[^>]*>|<\/dl>)/i',                      // <dl> and </dl>
+        '!<li[^>]*>!i',                               // <li>
+        '!</li>!i',                                   // </li>
+        '!<dt[^>]*>!i',                               // <dt>
+        '!</dt>!i',                                   // </dt>
+        '!<dd[^>]*>!i',                               // <dd>
+        '!</dd>!i',                                   // </dd>
+        '/<hr[^>]*>/i',                               // <hr>
+        '/(<table[^>]*>|<\/table>)/i',                // <table> and </table>
+        '/(<tr[^>]*>|<\/tr>)/i',                      // <tr> and </tr>
+        '/<td[^>]*>(.+?)<\/td>/i',                    // <td> and </td>
+        '/<th[^>]*>(.+?)<\/th>/i',                    // <th> and </th>
+        '/&nbsp;/i',
+        '/&quot;/i',
+        '/&gt;/i',
+        '/&lt;/i',
+        '/&amp;/i',
+        '/&copy;/i',
+        '/&trade;/i',
+        '/&#8220;/',
+        '/&#8221;/',
+        '/&#8211;/',
+        '/&#8217;/',
+        '/&#38;/',
+        '/&#169;/',
+        '/&#8482;/',
+        '/&#151;/',
+        '/&#147;/',
+        '/&#148;/',
+        '/&#149;/',
+        '/&reg;/i',
+        '/&bull;/i',
+        '/&[&;]+;/i'
+    );
+
+    return $search;
+}
+
+/**
+ *  List of pattern replacements corresponding to patterns searched.
+ *  Based on / modified from html2txt.module
+ */
+function _autoresponder_define_replace() {
+
+    $replace = array(
+        '',                                                               // Non-legal carriage return
+        ' ',                                                              // Tabs
+        '',                                                               // <script>s -- which strip_tags supposedly has problems with
+        "\"\n------------\" .strtoupper('\\1'). \"------------\n\n\"",    // H1 - H2
+        "\"\n\" . strtoupper('\\1') . \"\n\n\"",                          // H3
+        "ucwords(\"\n\n\\1\n\n\")",                                       // H4 - H6
+        "\n\n\t",                                                         // <blockquote>
+        "\n\n",                                                           // </blockquote>
+        "\n\n",                                                           // <p>
+        "\n",                                                             // <br>
+        '*',                                                              // <b> and <strong>
+        '/',                                                              // <em> and <i>
+        "\n\n",                                                           // <ul> and </ul>
+        "\n\n",                                                           // <ol> and </ol>
+        "\n\n",                                                           // <dl> and </dl>
+        "  * ",                                                           // <li>
+        "\n",                                                             // </li>
+        "  * ",                                                           // <dt>
+        "\n",                                                             // </dt>
+        "\t",                                                             // <dd>
+        "\n",                                                             // </dd>
+        "\n-------------------------\n",                                  // <hr>
+        "\n\n",                                                           // <table> and </table>
+        "\n",                                                             // <tr> and </tr>
+        "\t\t\\1\n",                                                      // <td> and </td>
+        "strtoupper(\"\t\t\\1\n\")",                                      // <th> and </th>
+        ' ',
+        '"',
+        '>',
+        '<',
+        '&',
+        '(c)',
+        '(tm)',
+        '"',
+        '"',
+        '-',
+        "'",
+        '&',
+        '(c)',
+        '(tm)',
+        '--',
+        '"',
+        '"',
+        '*',
+        '(R)',
+        '*',
+        ''
+    );
+    return $replace;
+}
+
+function autoresponder_user_list($op, $id) {
+  switch ($op) {
+    case 'delete':
+     return drupal_get_form('autoresponder_user_delete_confirm', $id);
+  }
+  $output .= drupal_get_form('autoresponder_user_list_form', $id);
+  return $output;
+}
+
+function autoresponder_user_delete_confirm($form_state, $id) {
+  $result = db_query_range('SELECT * FROM {autoresponder_users} WHERE id = %d', $id, 0, 1);
+  $us = db_fetch_object($result);
+  $form['id'] = array(
+    '#type' => 'value',
+    '#value' => arg(5)
+  );
+  $form['email'] = array(
+    '#type' => 'value',
+    '#value' => $us->email
+  );
+  return confirm_form($form,
+    t('Are you sure you want to delete \'<i>'.$us->email.'</i>\'?'),
+    'admin/settings/autoresponder/user/list', t('This action cannot be undone. '),
+    t('Delete'), t('Cancel'));
+}
+
+function autoresponder_user_list_form($form_state, $sid = NULL) {
+  $sql = 'SELECT a.setid, a.uid, at.name, at.id, au.email, au.reg_date
+    FROM {autoresponder} AS a
+    LEFT JOIN {autoresponder_sets} AS at ON a.setid = at.id
+    LEFT JOIN {autoresponder_users} AS au ON a.uid = au.id
+  ';
+  if ($sid) {
+    $sql .= 'WHERE a.setid = %d';
+    $set = db_fetch_object(db_query('SELECT name FROM {autoresponder_sets} WHERE id = %d', $sid));
+    $form['sname'] = array(
+      '#type' => 'value',
+      '#value' => $set->name,
+    );
+  }
+  $result = db_query($sql, $sid);
+  while ($us = db_fetch_object($result)) {
+    $date = format_date($us->reg_date, 'short');
+    $day = floor((time() - $us->reg_date) / (60*60*24));
+    $email = $us->email;
+    $u = user_load(array('mail' => $email));
+    if ($u->uid) {
+      $email = l($us->email, 'user/'.$u->uid);
+    }
+    $rows[$us->uid] = array(
+      '',
+      $email,
+      $date,
+      $day,
+      l(t('Delete'), 'admin/settings/autoresponder/user/delete/'.$us->uid),
+      ''
+    );
+    $row = implode("%%%", $rows[$us->uid]);
+    $form['checks'][$us->uid] = array(
+      '#type' => 'checkbox',
+      '#default_value' => 0,
+      '#description' => $row
+    );
+  }
+  if ($rows) {
+    $form['delete'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete users')
+    );
+  }
+  if (!$rows) {
+    $form['no_users'] = array(
+      '#type' => 'markup',
+      '#value' => t('No users')
+    );
+  }
+  return $form;
+}
+
+function autoresponder_mail_list($op, $id) {
+  switch ($op) {
+    case 'edit':
+      $result = db_query_range('SELECT * FROM {autoresponder_messages} WHERE id = %d', $id, 0, 1);
+      return autoresponder_mail_edit_create(db_fetch_array($result));
+    case 'add':
+      return autoresponder_mail_edit_create(array());
+    case 'delete':
+      return drupal_get_form('autoresponder_mail_delete_confirm', $id);
+  }
+  return drupal_get_form('autoresponder_mail_list_form');
+}
+
+function autoresponder_mail_delete_confirm($form_state, $id) {
+  $result = db_query_range("SELECT * FROM {autoresponder_messages} WHERE id = %d", $id, 0, 1);
+  $mail = db_fetch_object($result);
+  $form['mid'] = array(
+    '#type' => 'value',
+    '#value' => arg(6)
+  );
+  $form['subject'] = array(
+    '#type' => 'value',
+    '#value' => $mail->subject
+  );
+  return confirm_form($form,
+      t('Are you sure you want to delete <i>\''.$mail->subject.'\'</i>?'),
+      'admin/settings/autoresponder/mail/list', t('This action cannot be undone. '),
+      t('Delete'), t('Cancel'));
+}
+
+function autoresponder_mail_list_form($form_state) {
+  $result = db_query('SELECT am.*, at.name, at.id AS sid
+    FROM {autoresponder_messages} as am
+    LEFT JOIN {autoresponder_sets} as at ON am.mset = at.id
+    ORDER BY am.subject ASC, am.day ASC
+  ');
+  while ($mail = db_fetch_object($result)) {
+    $rows[$mail->id] = array(
+      '',
+      $mail->subject,
+      $mail->day,
+      l($mail->name, 'admin/settings/autoresponder/user/list/'.$mail->sid),
+      l(t('Edit'), 'admin/settings/autoresponder/mail/edit/' . $mail->id . '/' . $mail->mset),
+      l(t('Delete'), 'admin/settings/autoresponder/mail/delete/'.$mail->id.'/'.$mail->mset),
+      ''
+    );
+    $row = implode("%%%", $rows[$mail->id]);
+    $form['checks'][$mail->id] = array(
+      '#type' => 'checkbox',
+      '#default_value' => 0,
+      '#description' => $row
+    );
+  }
+  if ($rows) {
+    $form['delete'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete messages')
+      );
+  }
+  if (!$rows) {
+    $form['no_messages'] = array(
+      '#type' => 'markup',
+      '#value' => t('No messages in database! You can add one '.l(t('here...'), 'admin/settings/autoresponder/mail/add'))
+    );
+  }
+  return $form;
+}
+
+function autoresponder_set_list($op, $id) {
+  switch ($op) {
+    case 'edit':
+      $result = db_query_range('SELECT * FROM {autoresponder_sets} WHERE id=%d', $id, 0, 1);
+      return autoresponder_set_edit_create(db_fetch_array($result));
+    case 'add':
+      return autoresponder_set_edit_create();
+    case 'activate':
+      return autoresponder_set_activate($id);
+    case 'deactivate':
+      return autoresponder_set_deactivate($id);
+    case 'delete':
+      return drupal_get_form('autoresponder_set_delete_confirm');
+    case 'massmail':
+      return drupal_get_form('autoresponder_set_massmail_form');
+    default:
+      return drupal_get_form('autoresponder_set_list_form');
+  }
+}
+
+function autoresponder_set_delete_confirm() {
+  $result = db_query_range("SELECT * FROM {autoresponder_sets} WHERE id = %d", arg(5), 0, 1);
+  $set = db_fetch_object($result);
+  $form['id'] = array(
+    '#type' => 'value',
+    '#value' => arg(5)
+  );
+  $form['name'] = array(
+    '#type' => 'value',
+    '#value' => $set->name
+  );
+  return confirm_form($form,
+    t('Are you sure you want to delete <i>\''.$set->name.'\'</i>?'),
+    'admin/settings/autoresponder/set/list', t('This action cannot be undone. All messages from this set will be deleted too.'),
+    t('Delete'), t('Cancel'));
+}
+
+function autoresponder_set_massmail_form($form_state) {
+  $result = db_query('SELECT * FROM {autoresponder_sets}');
+  while ($set = db_fetch_object($result)) {
+   $sets[$set->id] = $set->name;
+  }
+  if (!$sets) {
+    $form[] = array(
+      '#type' => 'markup',
+      '#value' => t('No sets in database! You can add one '.l(t('here...'), 'admin/settings/autoresponder/set/add'))
+    );
+    return $form;
+  }
+  $form['set'] = array(
+    '#type' => 'select',
+    '#title' => t('Set'),
+    '#description' => t('Select set of messages for mass-mailing '),
+    '#options' => $sets,
+    '#default_value' => array_key_exists(arg(5), $sets) ? arg(5) : NULL
+  );
+  $form['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject'),
+    '#size' => 80,
+    '#required' => TRUE,
+    '#description' => t('Subject of the message'),
+  );
+  $form['body'] = array(
+    '#title' => t('Text'),
+    '#type' => 'textarea',
+    '#rows' => 20,
+    '#description' => t('Body of the message'),
+    '#required' => TRUE
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Send'
+  );
+  return $form;
+}
+
+function autoresponder_set_massmail_form_submit($form, &$form_state) {
+  $result = db_query('SELECT a.uid, au.email FROM {autoresponder} a LEFT JOIN {autoresponder_users} au ON a.uid = au.id WHERE setid = %d', $form_state['values']['set']);
+  while ($u = db_fetch_object($result)) {
+    $mail->uid = $u->uid;
+    $mail->setid = $form_state['values']['id'];
+    $mail->subject = $form_state['values']['subject'];
+    $mail->body = $form_state['values']['body'];
+    autoresponder_mail($u, $mail);
+    unset($mail);
+  }
+  drupal_set_message(t('Messages successfully sent!'));
+  drupal_goto('admin/settings/autoresponder/massmailer');
+}
+
+function autoresponder_role_massmail_form($form_state) {
+  $form['role'] = array(
+    '#type' => 'select',
+    '#title' => t('Role'),
+    '#description' => t('Send message to all users with specified role'),
+    '#options' => user_roles(TRUE)
+  );
+  $form['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject'),
+    '#required' => TRUE,
+    '#size' => 80,
+    '#description' => t('Subject of the message'),
+  );
+  $form['body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Body'),
+    '#rows' => 20,
+    '#required' => TRUE,
+    '#description' => t('Body of the message'),
+  );
+  $form['send'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send')
+  );
+  return $form;
+}
+
+function autoresponder_role_massmail_form_submit($form, &$form_state) {
+  $result = db_query('SELECT u.mail, u.uid FROM {users_roles} ur LEFT JOIN {users} u ON u.uid = ur.uid WHERE ur.rid = %d', $form_state['values']['role']);
+  while ($u = db_fetch_object($result)) {
+    $mail->email = $u->mail;
+    $mail->uid = $u->uid;
+    $mail->subject = $form_state['values']['subject'];
+    $mail->body = $form_state['values']['body'];
+    autoresponder_mail($u, $mail);
+    unset($mail);
+  }
+  drupal_set_message(t('Messages successfully sent!'));
+  drupal_goto('admin/settings/autoresponder/massmailer');
+}
+
+function autoresponder_all_massmail_form($form_state) {
+  $form['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject'),
+    '#required' => TRUE,
+    '#size' => 80,
+    '#description' => t('Subject of the message'),
+  );
+  $form['body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Body'),
+    '#rows' => 20,
+    '#required' => TRUE,
+    '#description' => t('Body of the message'),
+  );
+  $form['send'] = array(
+    '#type' => 'submit',
+    '#value' => t('Send')
+  );
+  return $form;
+}
+
+function autoresponder_all_massmail_form_submit($form, &$form_state) {
+  $result = db_query('SELECT id as uid FROM {autoresponder_users}');
+  while ($u = db_fetch_object($result)) {
+    $mail->email = $u->email;
+    $mail->subject = $form_state['values']['subject'];
+    $mail->body = $form_state['values']['body'];
+    autoresponder_mail($u, $mail);
+    unset($mail);
+  }
+  drupal_goto('admin/settings/autoresponder/massmailer');
+}
+
+function autoresponder_set_list_form($form_state) {
+  $sql = 'SELECT * FROM {autoresponder_sets}';
+  $result = db_query($sql);
+  while ($set = db_fetch_object($result)) {
+    $rows[$set->id] = array(
+      '',
+      l($set->name, 'admin/settings/autoresponder/user/list/'.$set->id, array('attributes' => array('title' => 'View users'))).'<br /><small>'.$set->description.'</small>',
+      $set->active == 0 ? l(t('Activate'), 'admin/settings/autoresponder/set/activate/'.$set->id) : l(t('Deactivate'), 'admin/settings/autoresponder/set/deactivate/'.$set->id),
+      /*$set->unsubscribe == 0 ? l(t('Unsubscribe users'), 'admin/settings/autoresponder/set/unsubscribe/'.$set->id) : l(t('Do not unsubscribe users'), 'admin/settings/autoresponder/set/subscribe/'.$set->id),*/
+      l(t('Edit'), 'admin/settings/autoresponder/set/edit/'.$set->id),
+      l(t('Delete'), 'admin/settings/autoresponder/set/delete/'.$set->id),
+      l(t('Add message'), 'admin/settings/autoresponder/mail/add/'.$set->id),
+      l(t('Send message to all subscribers'), 'admin/settings/autoresponder/massmailer/sets/'.$set->id),
+      l(t('View users'), 'admin/settings/autoresponder/user/list/'.$set->id),
+      ''
+    );
+    $row = implode("%%%", $rows[$set->id]);
+    $form['checks'][$set->id] = array(
+      '#type' => 'checkbox',
+      '#default_value' => 0,
+      '#description' => $row
+    );
+  }
+  if ($rows) {
+    $form['delete'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete sets')
+    );
+  }
+  if (!$rows) {
+    $form['no_sets'] = array(
+      '#type' => 'markup',
+      '#value' => t('No sets in database! You can add one '.l(t('here...'), 'admin/settings/autoresponder/set/add'))
+    );
+  }
+
+  return $form;
+}
+
+function autoresponder_user_list_form_submit($form, &$form_state) {
+  switch ($form_state['values']['op']) {
+    case t('Delete users'):
+      foreach ($_POST AS $key => $value)
+        if (is_int($key)) {
+          $id[] = $key;
+        }
+        if ($id) {
+          $placeholders = array_fill(0, count($id), "%d");
+        }
+        $count = count($id);
+        if ($count) {
+          db_query('DELETE FROM {autoresponder_users} WHERE id IN ('. implode(',', $placeholders) .')', $id);
+          db_query('DELETE FROM {autoresponder} WHERE uid IN ('. implode(',', $placeholders) .')', $id);
+          drupal_set_message(t('%count user(s) has been deleted successfully!', array('%count' => $count)));
+          drupal_goto('admin/settings/autoresponder/user/list');
+        }
+        else {
+          drupal_set_message(t('There are no users selected!'));
+        }
+      break;
+    case t('Send'):
+      break;
+ }
+}
+
+function autoresponder_mail_list_form_submit($form, &$form_state) {
+  switch ($form_state['values']['op']) {
+    case t('Delete messages'):
+      foreach ($_POST AS $key => $value) {
+        if (is_int($key)) {
+          $id[] = $key;
+        }
+      }
+      if ($id) {
+        $placeholders = array_fill(0, count($id), "%d");
+      }
+      $count = count($id);
+      if ($count) {
+        db_query('DELETE FROM {autoresponder_messages} WHERE id IN ('. implode(',', $placeholders) .')', $id);
+        drupal_set_message(t('%count message(s) has been deleted successfully!', array('%count' => $count)));
+        drupal_goto('admin/settings/autoresponder/mail/list');
+      }
+      else {
+        drupal_set_message(t('There are no selected messages!'));
+      }
+      break;
+  }
+}
+
+function autoresponder_set_list_form_submit($form, &$form_state) {
+  switch ($form_state['values']['op']) {
+    case t('Delete sets'):
+      foreach ($_POST AS $key => $value) {
+        if (is_int($key)) {
+          $id[] = $key;
+        }
+      }
+      if ($id) {
+        $placeholders = array_fill(0, count($id), "%d");
+      }
+      $count = count($id);
+      if ($count) {
+        db_query('DELETE FROM {autoresponder_sets} WHERE id IN ('. implode(',', $placeholders) .')', $id);
+        drupal_set_message(t('%count set(s) has been deleted successfully!', array('%count' => $count)));
+        drupal_goto('admin/settings/autoresponder/set/list');
+      }
+      else {
+        drupal_set_message(t('There are no selected sets!'));
+      }
+ }
+}
+
+function autoresponder_block($op = 'list', $delta = 0, $edit = array()) {
+  switch ($op) {
+    case 'list':
+      $blocks[0]['info'] = t('Autoresponder');
+      return $blocks;
+    case 'configure':
+      $form = array();
+      if ($delta == 0) {
+      // Here will be configuration form (if we will ever need it)
+      }
+      return $form;
+    case 'save':
+      if ($delta == 0) {
+      // Save configuration settings
+      }
+      break;
+    case 'view':
+    default:
+      switch ($delta) {
+        case 0:
+          $block['subject'] = t('Autoresponder');
+          $block['content'] = autoresponder_contents(1);
+          $block['weight'] = 0;
+          $block['enabled'] = 1;
+          break;
+      }
+      return $block;
+  }
+}
+
+function autoresponder_contents($which_block) {
+  if ($which_block == 1) {
+    return drupal_get_form('autoresponder_email_enter_form');
+  }
+}
+
+function autoresponder_user($op, &$edit, &$account, $category = NULL) {
+  switch ($op) {
+    case 'update':
+      if ($edit['email'] != $account->email) {
+        db_query('UPDATE {autoresponder_users} SET email = \'%s\' WHERE email = \'%s\'', $edit['email'], $account->mail);
+      }
+      break;
+    case 'register':
+      if (variable_get('show_on_user_register', TRUE)) {
+        $sets = _autoresponder_get_sets();
+        if (count($sets)) {
+          $default_set = 0;
+          if(variable_get('autoresponder_default_set_active', false) && variable_get('autoresponder_default_set', 0) > 0 ) {
+            $default_set = variable_get('autoresponder_default_set', 0);
+          }
+
+          $form['autoresponder'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('Autoresponder'),
+            '#weight' => 5,
+            '#collapsible' => TRUE,
+            '#collapsed' => FALSE,
+          );
+          $form['autoresponder']['set'] = array(
+            '#type' => 'checkboxes',
+            '#title' => t('Set'),
+            '#options' => $sets,
+            '#default_value' => array($default_set => $default_set),
+            '#description' => t('Select sets to subscribe'),
+          );
+          return $form;
+        }
+      }
+      break;
+    case 'insert':
+      $apply_autoresponder = false;
+      if (variable_get('show_on_user_register', TRUE)) {
+        $apply_autoresponder = true;
+      }
+      elseif (variable_get('autoresponder_default_set_active', false) && variable_get('autoresponder_default_set', 0)>0 ) {
+        $default_set_id = variable_get('autoresponder_default_set', 0);
+        $apply_autoresponder = true;
+        $edit['set'] = array($default_set_id => $default_set_id);
+      }
+
+      if ($apply_autoresponder) {
+        $sql = 'SELECT id FROM {autoresponder_users} WHERE email = \'%s\'';
+        $result = db_query($sql, $edit['mail']);
+        if ($us = db_fetch_object($result)) {
+          $auid = $us->id;
+        }
+        else {
+          $auobj = new stdClass();
+          $auobj->email = strtolower($edit['mail']);
+          $auobj->reg_date = time();
+          drupal_write_record('autoresponder_users', $auobj);
+          $auid = $auobj->id;
+          unset($auobj);
+        }
+        if (count($edit['set'])) {
+          foreach ($edit['set'] as $key => $value) {
+            if ($value) {
+              $aobj = new stdClass();
+              $aobj->uid = $auid;
+              $aobj->setid = $value;
+              drupal_write_record('autoresponder', $aobj);
+              unset($aobj);
+              $result_messages = db_query('SELECT * FROM {autoresponder_messages} WHERE day = %d AND mset = %d', 0,  $value);
+              while ($mail = db_fetch_object($result_messages)) {
+                $u->mail = $edit['mail'];
+                $u->uid = $auid;
+                $u->setid = $value;
+                autoresponder_mail($u, $mail);
+                drupal_set_message(t('Your email address %email is added to our mailing list! Please check your email.', array('%email' => $edit['mail'])));
+              }
+            }
+          }
+        }
+      }
+      break;
+  }
+}
+
+function autoresponder_email_enter_form($form_state) {
+  global $user;
+  $sets = _autoresponder_get_sets();
+  $sets_descr = _autoresponder_get_sets('description');
+  if (empty($sets))
+    $sets = array('empty' => '<empty>');
+  if (!$user->uid) {
+    $form['email'] = array(
+      '#type' => 'textfield',
+      '#title' => t('E-mail'),
+      '#size' => 25,
+      '#description' => t('Enter your e-mail to sign up for a series of emails'),
+      '#required' => TRUE,
+      '#weight' => 1
+    );
+  }
+  else {
+    $u = db_fetch_object(db_query('SELECT id FROM {autoresponder_users} WHERE email = \'%s\'', $user->mail));
+    $result = db_query('SELECT aus.name, aus.id, a.uid FROM {autoresponder} a LEFT JOIN {autoresponder_sets} aus ON a.setid = aus.id WHERE a.uid = %d', $u->id);
+    while ($s = db_fetch_object($result)) {
+      $user_sets .= $s->name.' | '.l('Unsubscribe', 'autoresponder/unsubscribe/'.$s->id.'/'.$s->uid, array('query' => drupal_get_destination())).'<br />';
+      $set_array[$s->id] = $s->name;
+    }
+    if (!variable_get('autoresponder_hide_email', FALSE)) {
+      $form['user_mail'] = array(
+        '#type' => 'item',
+        '#value' => $user->mail,
+        '#title' => t('E-mail'),
+        '#description' => t('Your E-mail address'),
+       '#weight' => 1
+      );
+    }
+    $form['email'] = array(
+      '#type' => 'value',
+      '#value' => $user->mail
+    );
+    if ($user_sets && !variable_get('autoresponder_hide_sets', FALSE)) {
+      $form[] = array(
+        '#type' => 'item',
+        '#title' => t('Subscribed to'),
+        '#weight' => 5
+      );
+      $form['user_sets'] = array(
+        '#type' => 'markup',
+        '#value' => $user_sets,
+        '#weight' => 6
+      );
+    }
+    if (empty($sets)) {
+      $sets = array('empty' => '<empty>');
+    }
+    else {
+      if (!empty($set_array)) {
+        foreach ($set_array as $key => $value) {
+          if (array_key_exists($key, $sets)) {
+            unset($sets[$key]);
+          }
+        }
+        if (empty($sets))
+          $sets = array('empty' => t('No sets to subscribe!'));
+      }
+    }
+  }
+  if (variable_get('autoresponder_hide_select', FALSE) && count($sets) == 1 && !isset($sets['empty'])) {
+    $sid = key($sets);
+    $s = array_pop($sets);
+    $sd = array_pop($sets_descr);
+    $form['set_name'] = array(
+      '#type' => 'item',
+      '#title' => t('Set'),
+      '#value' => $s,
+      '#description' => $sd,
+    );
+    $form['set'] = array(
+      '#type' => 'value',
+      '#value' => $sid
+    );
+  }
+  else {
+    if (variable_get('autoresponder_select_type', 'select') == 'select') {
+      $form['set'] = array(
+        '#type' => 'select',
+        '#title' => t('Set'),
+        '#options' => $sets,
+        '#description' => t('Select set'),
+        '#required' => TRUE,
+      );
+    }
+    else {
+      if (isset($sets['empty'])) {
+        $hide = TRUE;
+      }
+      $form['set'] = array(
+        '#type' => 'checkboxes',
+        '#title' => t('Set'),
+        '#options' => $sets,
+        '#description' => t('Select set'),
+        '#disabled' => $hide,
+        '#required' => TRUE,
+      );
+    }
+  }
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Subscribe'),
+    '#weight' => 3
+  );
+  return $form;
+}
+
+function autoresponder_set_edit_create($set = array()) {
+  return drupal_get_form('autoresponder_set_edit_create_form', $set);
+}
+
+function autoresponder_set_edit_create_form($form_state, $set) {
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Title'),
+    '#default_value' => $set['name'],
+    '#size' => 60,
+    '#maxlength' => 64,
+    '#description' => t('Enter mailing set title'),
+    '#required' => TRUE
+  );
+  $form['description'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Description'),
+    '#default_value' => $set['description'],
+    '#rows' => 15,
+    '#description' => t('Enter an set description. It will be shown in block under the name if only this set is active (or only this set exists).')
+  );
+  $message = ($set['message'] == '') ? t('Your email address %email is added to our mailing list! Please check your email.') : $set['message'];
+  $form['message'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Message'),
+    '#default_value' => $message,
+    '#rows' => 5,
+    '#description' => t('Message that will be showed to user after successful subscribing to set. Available variables: %email. Leave blank to show default message: %message', array('%message' => 'Your email address %email is added to our mailing list! Please check your email.'))
+  );
+  $form['active'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Active'),
+    '#default_value' => $set['active'],
+    '#description' => t('Check this to create an active set. If not checked, set will not be shown in the sets list in the block and messages from this set will not be delivered to subscribers.'),
+  );
+  /*$form['unsubscribe'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Unsubscribe'),
+    '#default_value' => $set['active'],
+    '#disabled' => TRUE,
+    '#description' => t('Check this to automatically unsubscribe users form the list after all the messages was sended.'),
+  );*/
+  $form['submit' ] = array(
+    '#type' => 'submit',
+    '#value' => t('OK')
+  );
+  if ($set['id']) {
+    $form['id'] = array(
+      '#type' => 'value',
+      '#value' => $set['id']
+    );
+  }
+  return $form;
+}
+
+function autoresponder_mail_edit_create($mail) {
+  return drupal_get_form('autoresponder_mail_edit_create_form', $mail);
+}
+
+function autoresponder_mail_edit_create_form($form_state, $mail) {
+  $sql = 'SELECT * FROM {autoresponder_sets}';
+  $result = db_query($sql);
+  $sets = array();
+  while ($set = db_fetch_object($result))
+    $sets["$set->id"] = $set->name;
+  if (!$sets) {
+    $form[] = array(
+      '#type' => 'markup',
+      '#value' => t('No sets in database! You can add one '.l(t('here...'), 'admin/settings/autoresponder/set/add'))
+    );
+    return $form;
+  }
+
+  $mid = arg(6);
+  $setid = arg(5);
+
+  $form['subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Subject'),
+    '#default_value' => $mail['subject'],
+    '#size' => 60,
+    '#maxlength' => 64,
+    '#description' => t('Enter message subject'),
+    '#required' => TRUE
+  );
+  $form['set'] = array(
+    '#type' => 'select',
+    '#title' => t('Set'),
+    '#options' => $sets,
+    '#description' => t('Select list'),
+    '#default_value' => !empty($setid) ? $setid : $mail['mset'],
+    '#required' => TRUE,
+  );
+  $form['date'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Sending date'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    //'#description' => 'If you enter <i>Day #</i> then message will be sent on the day number #. If you leave <i>Day #</i> empty, then you must select the date when message will be sent. The date you select will be converted to Day #. No time in the past allowed.'
+  );
+  $form['date']['day'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Day #'),
+    '#default_value' => $mail['day'],
+    '#size' => 3,
+    '#maxlength' => 128,
+    '#description' => t('Enter the day #, when email must be sent. Day 0 e-mail will be sended immidiately after subscribing and it can be more than one Day 0 messages. It will be calculated independent for every user based on his registration date.')
+  );
+  /*$form['date'][] = array(
+    '#type' => 'markup',
+    '#value' => '<h3>Or</h3>'
+  );
+  $form['date']['dt'] = array(
+    '#type' => 'date',
+    '#title' => 'Date',
+    '#default_value' => $mail['date'],
+    '#disabled' => TRUE,
+    '#description' => t('Date, when to send message'),
+  );*/
+  $form['body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Body'),
+    '#default_value' => $mail['body'],
+    '#required' => TRUE,
+    '#rows' => 15,
+    '#description' => t('Enter an e-mail body')
+  );
+  $form['submit' ] = array(
+    '#type' => 'submit',
+    '#value' => t('OK')
+  );
+  if ($mail['id']) {
+    $form['id'] = array(
+      '#type' => 'value',
+      '#value' => $mail['id']
+    );
+  }
+  return $form;
+}
+
+function autoresponder_email_enter_form_validate($form, &$form_state) {
+  if (!valid_email_address($form_state['values']['email']))
+    form_set_error('email', 'Email address is wrong. Example: <i>john@coolsite.com</i>');
+  $result = db_query("SELECT COUNT(*) FROM {autoresponder_users} au LEFT JOIN {autoresponder} a ON au.id = a.uid WHERE au.email = '%s' AND a.setid = %d", $form_state['values']['email'], $form_state['values']['set']);
+  $exist = db_result($result) > 0;
+  if ($exist)
+    form_set_error('email',t('Your email address @mail is already subscribed for this list.', array('@mail' => $form_state['values']['email'])));
+}
+
+function autoresponder_email_enter_form_submit($form, &$form_state) {
+  if (!is_array($form_state['values']['set']))
+    $form_state['values']['set'] = array($form_state['values']['set'] => (int)$form_state['values']['set']);
+  if (isset($form_state['values']['set']['empty'])) {
+    drupal_set_message(t('No sets available to subscribe.'));
+    return;
+  }
+  $sql = 'SELECT id FROM {autoresponder_users} WHERE email = \'%s\'';
+  $result = db_query($sql, $form_state['values']['email']);
+  if ($us = db_fetch_object($result)) {
+    $auid = $us->id;
+  }
+  else {
+    $auobj = new stdClass();
+    $auobj->email = strtolower($form_state['values']['email']);
+    $auobj->reg_date = time();
+    drupal_write_record('autoresponder_users', $auobj);
+    $auid = $auobj->id;
+    unset($auobj);
+  }
+  foreach ($form_state['values']['set'] as $key => $value) {
+    if ($value) {
+      $aobj = new stdClass();
+      $aobj->uid = $auid;
+      $aobj->setid = $value;
+      drupal_write_record('autoresponder', $aobj);
+      unset($aobj);
+      $result_messages = db_query('SELECT * FROM {autoresponder_messages} WHERE day = %d AND mset = %d', 0, $value);
+      while ($mail = db_fetch_object($result_messages)) {
+        $u->mail = $form_state['values']['email'];
+        $u->uid = $auid;
+        $u->setid = $value;
+        autoresponder_mail($u, $mail);
+        $message = t(db_result(db_query_range('SELECT message FROM {autoresponder_sets} WHERE id = %d', $value, 0, 1)), array('%email' => $form_state['values']['email']));
+        drupal_set_message($message);
+      }
+    }
+  }
+  drupal_goto();
+}
+
+function autoresponder_user_delete_confirm_submit($form, &$form_state) {
+  db_query('DELETE FROM {autoresponder_users} WHERE id = %d', $form_state['values']['id']);
+  db_query('DELETE FROM {autoresponder} WHERE uid = %d', $form_state['values']['id']);
+  drupal_set_message(t('User <i>%email</i> successfully deleted!',array('%email' => $form_state['values']['email'])));
+  drupal_goto('admin/settings/autoresponder/user/list');
+}
+
+function autoresponder_mail_delete_confirm_submit($form, &$form_state) {
+  db_query('DELETE FROM {autoresponder_messages} WHERE id = %d', $form_state['values']['mid']);
+  drupal_set_message(t('Message %subject successfully deleted!', array('%subject' => $form_state['values']['subject'])));
+  drupal_goto('admin/settings/autoresponder/mail/list');
+}
+
+function autoresponder_set_delete_confirm_submit($form, &$form_state) {
+  $result = db_query('SELECT uid FROM {autoresponder} WHERE setid = %d', $form_state['values']['id']);
+  while ($user = db_fetch_object($result)) {
+    $users[] = $user->uid;
+  }
+  db_query('DELETE FROM {autoresponder_sets} WHERE id = %d', $form_state['values']['id']);
+  db_query('DELETE FROM {autoresponder_messages} WHERE mset = %d', $form_state['values']['id']);
+  if ($users) {
+    $placeholders = array_fill(0, count($users), "%d");
+    $uids = implode(',', $users);
+    db_query('DELETE FROM {autoresponder_users} WHERE uid IN ('. implode(',', $placeholders) .')', $users);
+    db_query('DELETE FROM {autoresponder} WHERE uid IN ('. implode(',', $placeholders) .')', $users);
+  }
+  drupal_set_message(t('Set %name successfully deleted! Messages, that associated with this set was deleted too.', array('%name' => $form_state['values']['name'])));
+  drupal_goto('admin/settings/autoresponder/set/list');
+}
+
+function autoresponder_set_edit_create_form_submit($form, &$form_state) {
+  $obj = new stdClass();
+  $obj->name = $form_state['values']['name'];
+  $obj->description = $form_state['values']['description'];
+  $obj->message = $form_state['values']['message'];
+  $obj->active = $form_state['values']['active'];
+  $obj->unsubscribe = $form_state['values']['unsubscribe'];
+  if ($form_state['values']['id']) {
+    $obj->id = $form_state['values']['id'];
+    drupal_write_record('autoresponder_sets', $obj, array('id'));
+    drupal_set_message(t('Set %name successfully updated!', array('%name' => $form_state['values']['name'])));
+  }
+  else {
+    drupal_write_record('autoresponder_sets', $obj);
+    drupal_set_message(t('Successfully added!'));
+  }
+  unset($obj);
+  $form_state['redirect'] = 'admin/settings/autoresponder/set/list';
+}
+
+function autoresponder_mail_edit_create_form_validate($form, &$form_state) {
+  if (!is_numeric($form_state['values']['day']))
+    form_set_error('day', t('The day must be a number. Example: %num', array('%num' => 10)));
+  /*elseif (!is_numeric($form_state['values']['day']) && (strtotime($form_state['values']['dt']['day'].'.'.$form_state['values']['dt']['month'].'.'.$form_state['values']['dt']['year']) < time())) {
+    form_set_error('dt', t('The date must be in the future.'));*/
+}
+
+function autoresponder_mail_edit_create_form_submit($form, &$form_state) {
+  $obj = new stdClass();
+  $obj->subject = $form_state['values']['subject'];
+  $obj->body = $form_state['values']['body'];
+  $obj->mset = $form_state['values']['set'];
+  $obj->day = $form_state['values']['day'];
+  if ($form_state['values']['id']) {
+    $obj->id = $form_state['values']['id'];
+    drupal_write_record('autoresponder_messages', $obj, array('id'));
+    drupal_set_message(t('Mail set %subject successfully updated!', array('%subject' => $form_state['values']['subject'])));
+  }
+  else {
+    drupal_write_record('autoresponder_messages', $obj);
+    drupal_set_message(t('New message %subject successfully added on day %day! If you want, you can add more messages !url', array('%subject' => $form_state['values']['subject'], '%day' => $form_state['values']['day'], '!url' => l(t('here...'), 'admin/settings/autoresponder/mail/add'))));
+  }
+  unset($obj);
+  $form_state['redirect'] = 'admin/settings/autoresponder/mail/list';
+}
+
+function autoresponder_set_activate($id) {
+  $query = db_query_range('SELECT * FROM {autoresponder_sets} WHERE id = %d', $id, 0, 1);
+  $set = db_fetch_object($query);
+  db_query('UPDATE {autoresponder_sets} SET active = 1 WHERE id = %d', $id);
+  drupal_set_message(t('Set %name successfully activated!', array('%name' => $set->name)));
+  drupal_goto('admin/settings/autoresponder/set/list');
+}
+
+function autoresponder_set_deactivate($id) {
+  $query = db_query_range('SELECT * FROM {autoresponder_sets} WHERE id = %d', $id, 0, 1);
+  $set = db_fetch_object($query);
+  db_query('UPDATE {autoresponder_sets} SET active = 0 WHERE id = %d', $id);
+  drupal_set_message(t('Set %name successfully deactivated!', array('%name' => $set->name)));
+  drupal_goto('admin/settings/autoresponder/set/list');
+}
+
+function autoresponder_theme() {
+  return array(
+    'autoresponder_mail_list_form' => array(
+      'arguments' => array('form' => NULL),
+      'file'      => 'autoresponder.theme.inc',
+    ),
+    'autoresponder_set_list_form' => array(
+      'arguments' => array('form' => NULL),
+      'file'      => 'autoresponder.theme.inc',
+    ),
+    'autoresponder_user_list_form' => array(
+      'arguments' => array('form' => NULL),
+      'file'      => 'autoresponder.theme.inc',
+    ),
+  );
+}
+
+function _autoresponder_admin_menu_block_page() {
+  $item = menu_get_item();
+  if ($content = system_admin_menu_block($item)) {
+    $output = theme('admin_block_content', $content);
+  }
+  else {
+    $output = t('You do not have any administrative items.');
+  }
+  return $output;
+}
+

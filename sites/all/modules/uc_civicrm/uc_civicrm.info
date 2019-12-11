@@ -1,0 +1,14 @@
+name = "Ubercart-CiviCRM Integration"
+description = Integrates Ubercart with CiviCRM.
+package = "Ubercart - extra"
+dependencies[] = "civicrm"
+dependencies[] = "uc_order"
+
+core = 6.x
+
+; Information added by drupal.org packaging script on 2011-08-08
+version = "6.x-4.x-dev"
+core = "6.x"
+project = "uc_civicrm"
+datestamp = "1312763847"
+

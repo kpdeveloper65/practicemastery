@@ -1,0 +1,39 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Installation functions for the Simplenews Private Roles module.
+ */
+
+/**
+ * Implementation of hook_schema
+ */
+function simplenews_private_roles_schema() {
+  $schema = array(
+    'simplenews_private_roles' => array(
+      'description' => "Store role / newsletter allowances",
+      'fields'      => array(
+        'tid'  => array('type' => 'int', 'not null' => TRUE),
+        'rid'  => array('type' => 'int', 'not null' => TRUE)
+      )
+    )  
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install
+ */
+function simplenews_private_roles_install() {
+  drupal_install_schema('simplenews_private_roles');
+}
+
+/**
+ * Implementation of hook_uninstall
+ */
+function simplenews_private_roles_uninstall() {
+  drupal_uninstall_schema('simplenews_private_roles');
+}
+  

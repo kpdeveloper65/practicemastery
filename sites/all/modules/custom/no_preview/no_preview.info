@@ -1,0 +1,4 @@
+name = No Preview
+description = removes the preview buttons from node-add pages.
+package = Custom
+core = 6.x

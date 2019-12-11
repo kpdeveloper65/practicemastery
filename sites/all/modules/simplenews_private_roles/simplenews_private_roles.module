@@ -1,0 +1,208 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Simplenews Private Roles restricts selected newsletters to allow only certain roles to view/subscribe to them.
+ */
+
+/**
+ * Implementation of hook_perm()
+ */
+function simplenews_private_roles_perm() {
+  return array(
+    'manage private simplenews roles',
+    'may subscribe to all newsletters'
+  );
+}
+
+/**
+ * Implementations of hook_form_FORM_ID_alter()
+ */
+
+/**
+ * Insert our render handler in the newsletter subscription form
+ */
+function simplenews_private_roles_form_simplenews_subscription_manager_form_alter(&$form, &$form_state) {
+  $options = array();
+  foreach ($form['subscriptions']['newsletters']['#options'] as $tid => $name) {
+    if (_simplenews_private_roles_has_access($tid)) {
+      $options[$tid] = $name;
+    }
+  }
+  
+  $form['subscriptions']['newsletters']['#options'] = $options;
+  $form['#validate'][] = "simplenews_private_roles_form_simplenews_subscription_manager_validate";
+}
+
+function simplenews_private_roles_form_simplenews_subscription_manager_validate($form, $form_state) {
+  foreach ($form_state['values']['newsletters'] as $tid => $checked) {
+    if (!_simplenews_private_roles_has_access($tid)) {
+      form_set_error('newsletters', t("You aren't allowed to subscribe to this newsletter."));
+    }
+  }
+}
+
+/**
+ * Insert our fieldset in the newsletter edit form.
+ */
+function simplenews_private_roles_form_simplenews_admin_types_form_alter(&$form, &$form_state) {
+  global $user;
+  
+  if (!user_access('manage private simplenews roles', $user)) {
+    return;
+  }
+  
+  $selected = array();
+  if ($form['tid']) {
+    $selected = _simplenews_private_roles_fetch($form['tid']['#value']);
+  }
+
+  $roles = user_roles();
+  $form['sn_private_roles'] = array(
+    '#type'		      => 'fieldset',
+    '#title'	      => t("Restrict to roles"),
+    '#collapsible'	=> TRUE,
+    '#collapsed'		=> FALSE,
+    'private_roles'	=> array(
+      '#type'	         => 'checkboxes',
+      '#title'		     => t("Select roles that may subscribe to this newsletter"),
+      '#options'	     => $roles,
+      '#default_value' => $selected
+    )
+  );
+  
+  $form['#submit'][] = 'simplenews_private_roles_submit';
+}
+
+/**
+ * 
+ * Store role choices for the given newsletter.
+ * 
+ * @param $form
+ * 
+ * @param $form_state
+ */
+function simplenews_private_roles_submit(&$form, $form_state) {
+  $rids = array();
+  foreach ($form_state['values']['private_roles'] as $rid => $checked) {
+    if ($checked) {
+      $rids[] = $rid;
+    }
+  }
+  
+  // if we are heavier than simplenews, the tid will have already been set here.
+  // if we are lighter, set the role choices and we'll save in the taxonomy hook
+  $_SESSION['simplenews_private_roles'] = $rids;
+  
+  if ($_SESSION['simplenews_private_roles_tid']) {
+    // we're coming after simplenews, so we can save now.
+    _simplenews_private_roles_update($_SESSION['simplenews_private_roles_tid'], $rids);
+    unset($_SESSION['simplenews_private_roles_tid']);
+  }
+}
+
+/**
+ * Implementation of hook_taxonomy
+ */
+function simplenews_private_roles_taxonomy($op, $type, $array = NULL) {
+  // check that we're interested
+  if ($type != 'term') {
+    return;
+  }
+  if (!module_exists('simplenews')) {
+    return;
+  }
+  if ($array['vid'] != variable_get('simplenews_vid', 0)) {
+    return;
+  }
+
+  if ($op == 'delete') {
+    _simplenews_private_roles_update($array['tid']);
+  }
+  else {
+    // see logic at the beginning of simplenews_private_roles_submit() for 
+    // why we do this.
+    $_SESSION['simplenews_private_roles_tid'] = $array['tid'];
+    
+    if ($_SESSION['simplenews_private_roles']) {
+      _simplenews_private_roles_update($array['tid'], $_SESSION['simplenews_private_roles']);
+      unset($_SESSION['simplenews_private_roles']);
+    }
+  }
+}
+
+/**
+ * 
+ * Store user choices to our table.
+ * 
+ * @param $tid
+ * The newsletter tid
+ * 
+ * @param $rids
+ * An array of role ids
+ */
+function _simplenews_private_roles_update($tid, $rids = array()) {
+  db_query("DELETE FROM {simplenews_private_roles} WHERE tid = %d", $tid);
+  
+  foreach ($rids as $rid) {
+    db_query("INSERT INTO {simplenews_private_roles} (tid, rid) VALUES(%d, %d)", $tid, $rid);
+  }
+}
+
+/**
+ * 
+ * Get an array of role ids allowed to see this newsletter.
+ * 
+ * An empty array means ALL roles may see this newsletter.
+ * 
+ * @param $tid
+ */
+function _simplenews_private_roles_fetch($tid) {
+  $result = db_query("SELECT rid FROM {simplenews_private_roles} WHERE tid = %d", $tid);
+
+  $rids = array();
+  $row  = NULL;
+  while ($row = db_fetch_array($result)) {
+    $rids[] = $row['rid'];
+  }
+  
+  return $rids;
+}
+
+/**
+ * 
+ * Determine whether the given user has access to a given newsletter.
+ * 
+ * @param $tid
+ * 
+ * @param $user = NULL
+ * Uses the current user if this is NULL
+ * 
+ * @return
+ * TRUE or FALSE
+ */
+function _simplenews_private_roles_has_access($tid, $account = NULL) {
+  if (!$account) {
+    global $user;
+    $account = $user;
+  }
+  
+  if (user_access('may subscribe to all newsletters', $account)) {
+    return TRUE;
+  }
+  
+  $allowed = _simplenews_private_roles_fetch($tid);
+  if (!$allowed) {
+    return TRUE;
+  }
+  
+  $roles = array_keys($account->roles);
+  foreach ($allowed as $rid) {
+    if (in_array($rid, $roles)) {
+      return TRUE;
+    }
+  }
+  
+  return FALSE;
+}

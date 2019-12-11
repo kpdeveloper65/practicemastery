@@ -1,0 +1,6 @@
+name = PMI Tweaks
+description = Tweaks for site
+package = Custom
+version = VERSION
+core = 6.x
+files[] = pmi_tweaks.module

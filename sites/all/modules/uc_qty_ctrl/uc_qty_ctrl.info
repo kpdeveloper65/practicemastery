@@ -1,0 +1,7 @@
+; $Id$
+name = Cart Quantity Control
+description = Control the quantity of a product that can be added to the shopping cart
+core=6.x
+dependencies[] = uc_cart 
+dependencies[] = uc_product
+package = Ubercart - extra

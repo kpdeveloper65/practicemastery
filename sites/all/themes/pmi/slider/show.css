@@ -1,0 +1,26 @@
+#qscroller3 {
+    position: relative;
+    width:205px;
+    height:137px;
+}
+#qscroller3-nav {
+    position:absolute;
+    height: 18px;
+    visibility: hidden;
+    background: #f0f0f0;
+    z-index: 1;
+    width: 100%;
+}
+#qscroller3-nav a {
+    text-decoration: none;
+}
+#qscroller3-nav div {
+    float: right;
+}
+#qscroller3-nav img {
+    border: none;
+    padding: 3px 2px 0;
+}
+.qslide3 img {
+    border: 1px solid #fff;
+} 

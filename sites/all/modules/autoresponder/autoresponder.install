@@ -1,0 +1,150 @@
+<?php
+
+//$Id: autoresponder.install,v 1.2.4.1 2009/02/07 14:11:55 cyberpunk Exp $
+
+/**
+ * Schema specification for Drupal 6
+ */
+function autoresponder_schema() {
+  $schema = array();
+  
+  $schema['autoresponder_users'] = array(
+    'description' => t('The autoresponder users'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('Identifies the autoresponder subscriber'),
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'email' => array(
+        'description' => t("The subscriber's e-mail address"),
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+      ),
+      'reg_date' => array(
+        'description' => t("Registration date"),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  $schema['autoresponder_messages'] = array(
+    'description' => t('The individual messages which can be part of {autoresponder_sets}'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('Identifies the message'),
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'subject' => array(
+        'description' => t('The mail subject'),
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+      ),
+      'body' => array(
+        'description' => t('The mail body'),
+        'type' => 'text',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'day' => array(
+        'description' => t('The day when the message is sent'),
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'mset' => array(
+        'description' => t('The {autoresponder_sets}.id which this message is part of'),
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  $schema['autoresponder_sets'] = array(
+    'description' => t('Message sets'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('Message set identifier'),
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => t('Message set name'),
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+      ),
+      'description' => array(
+        'description' => t('Message set description'),
+        'type' => 'text',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'message' => array(
+        'description' => t('Message that is shown to the user after successful subscribing'),
+        'type' => 'text',
+        'size' => 'normal',
+        'not null' => TRUE,
+      ),
+      'active' => array(
+        'description' => t('Indicates this is an active set or not'),
+        'type' => 'int',
+        'size' => 'small',
+        'not null' => TRUE,
+      ),
+      'unsubscribe' => array(
+        'description' => t('User automatically unsubscribed when last mail sent or not'),
+        'type' => 'int',
+        'size' => 'small',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  $schema['autoresponder'] = array(
+    'description' => t('Pairs {autoresponder_users} and {autoresponder_sets}'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('Identifies the user-set pair'),
+        'type' => 'serial',
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => t('{autoresponder_users}.id'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'setid' => array(
+        'description' => t('{autoresponder_sets}.id'),
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+  
+  return $schema;
+}
+
+/**
+ * Install the database schema
+ */
+function autoresponder_install() {
+  variable_set('emails_sent', '0');
+  drupal_install_schema('autoresponder');
+}
+
+/**
+ * Uninstall the database schema
+ */
+function autoresponder_uninstall() {
+  variable_del('emails_sent');
+  drupal_uninstall_schema('autoresponder');
+}

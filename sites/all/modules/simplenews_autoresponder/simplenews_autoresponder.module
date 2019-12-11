@@ -1,0 +1,346 @@
+<?php
+
+/**
+ * Implementation of hook_perm().
+ */
+function simplenews_autoresponder_perm() {
+  return array('administer simplenews autoresponders');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function simplenews_autoresponder_menu() {
+
+  $items = array();
+
+  $items['admin/settings/simplenews_autoresponder'] = array(
+      'title' => t('Simplenews autoresponder'),
+      'description' => t('Configuration page for Simplenews autoresponder module.'),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('simplenews_autoresponder_admin'),
+      'access arguments' => array('administer simplenews autoresponders'),
+      'type' => MENU_NORMAL_ITEM,
+      'file' => 'includes/admin.inc',
+  );
+
+  $items['admin/settings/simplenews_autoresponder/add'] = array(
+      'title' => t('Simplenews autoresponder'),
+      'description' => t('Add new autoresponder.'),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('simplenews_autoresponder_admin_edit'),
+      'access arguments' => array('administer simplenews autoresponders'),
+      'type' => MENU_NORMAL_ITEM,
+      'file' => 'includes/admin.inc',
+  );
+
+  $items['admin/settings/simplenews_autoresponder/edit/%'] = array(
+      'title' => t('Edit autoresponder'),
+      'description' => t('Edit given autoresponder.'),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('simplenews_autoresponder_admin_edit', 4),
+      'access arguments' => array('administer simplenews autoresponders'),
+      'type' => MENU_NORMAL_ITEM,
+      'file' => 'includes/admin.inc',
+  );
+
+  $items['admin/settings/simplenews_autoresponder/delete/%'] = array(
+      'title' => t('Delete autoresponder'),
+      'description' => t('Delete given autoresponder.'),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('simplenews_autoresponder_admin_delete', 4),
+      'access arguments' => array('administer simplenews autoresponders'),
+      'type' => MENU_NORMAL_ITEM,
+      'file' => 'includes/admin.inc',
+  );
+
+
+  return $items;
+}
+
+function simplenews_autoresponder_get_pending_messages_for_today() {
+  $start_of_day = strtotime(date('m/d/Y')); // today at midnight (0:00:00 am)
+  $end_of_day = $start_of_day + (60 * 60 * 24) - 1; // today at 11:59:59 pm
+  $items = array();
+
+  $query_template = "SELECT sam.*, ss.*, sas.id as subscription_id, sam.id as message_id
+       FROM simplenews_autoresponder_messages sam
+       JOIN simplenews_autoresponder_subscriptions sas 
+         ON sas.autoresponder_id = sam.autoresponder_id
+       JOIN simplenews_subscriptions ss
+         ON ss.snid = sas.snid
+       LEFT JOIN simplenews_autoresponder_messages_sent sams
+         ON sams.subscription_id = sas.id AND sams.message_id = sam.id
+       WHERE ss.timestamp + (sam.offset * 60 * 60 * 24) BETWEEN (%d) AND (%d)
+         AND sams.id IS NULL";
+
+  $result = db_query($query_template, $start_of_day, $end_of_day);
+
+  while ($item = db_fetch_object($result)) {
+    $items[] = $item;
+  }
+
+  return $items;
+}
+
+/**
+ * Implements hook_cron().
+ */
+function simplenews_autoresponder_cron() {
+  $pending = simplenews_autoresponder_get_pending_messages_for_today();
+  watchdog('sn Autoresponder', print_r($pending));
+  if (!empty($pending)) {
+    module_load_include('inc', 'simplenews', 'includes/simplenews.mail');
+
+    foreach ($pending as $item) {
+      $subscription = simplenews_get_subscription(array('snid' => $item->snid));
+      $autoresponder_subscriber = simplenews_get_autoresponder_subscriber($item->autoresponder_id, $item->snid);
+
+      simplenews_send_node($item->nid, array($subscription));
+
+      $autoresponder_subscriber->last_message_nid = $item->nid;
+      $autoresponder_subscriber->last_message_sent = time();
+      drupal_write_record('simplenews_autoresponder_subscriptions', $autoresponder_subscriber, array('id'));
+
+      $message_log = new stdClass();
+      $message_log->subscription_id = $item->subscription_id;
+      $message_log->message_id = $item->message_id;
+      $message_log->timestamp = time();
+      drupal_write_record('simplenews_autoresponder_messages_sent', $message_log);
+    }
+  }
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function simplenews_autoresponder_form_alter(&$form, $form_state, $form_id) {
+  // If we dont have permission to set the title then we need to abort this alter now!
+  if (!user_access('administer simplenews autoresponders'))
+    return;
+
+  // Check we're editing a node and also check that the node type's 'show field' is enabled
+  if ($form['#id'] == 'node-form') {
+    $terms = simplenews_autoresponder_get_tids();
+
+    if (!empty($terms)) {
+      $form['simplenews_autoresponder'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('Simplenews Autoresponder(s)'),
+          '#collapsible' => TRUE,
+          '#weight' => -2,
+      );
+      foreach ($terms as $tid => $term_name) {
+        $autoresponder = simplenews_get_autoresponder_by_tid($tid);
+        if ($autoresponder) {
+          $key = 'simplenews_autoresponder_offset_' . $autoresponder->id;
+          $form['simplenews_autoresponder'][$key] = array(
+              '#type' => 'textfield',
+              '#title' => t('Simplenews autoresponder offset for %name', array('%name' => $autoresponder->name)),
+              '#description' => t("How many days after the user subscribed should this message be sent?"),
+              '#default_value' => $form['#node']->{$key},
+              '#size' => 60,
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function simplenews_autoresponder_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
+  switch ($op) {
+    case 'update':
+    case 'insert':
+
+      if (user_access('administer simplenews autoresponders')) {
+
+        $offsets = simplenews_autoresponder_get_message_offsets_by_nid($node->nid);
+        $terms = simplenews_autoresponder_get_tids();
+
+        foreach ($terms as $tid => $term_name) {
+          $autoresponder = simplenews_get_autoresponder_by_tid($tid);
+          $key = 'simplenews_autoresponder_offset_' . $autoresponder->id;
+          if (isset($node->{$key})) {
+            $offset = $node->{$key};
+
+            if (array_key_exists($autoresponder->id, $offsets)) {
+              // update
+              db_query("UPDATE {simplenews_autoresponder_messages} SET offset = %d WHERE nid = %d AND autoresponder_id = %d", $offset, $node->nid, $autoresponder->id);
+            } else {
+              // insert
+              db_query("INSERT INTO {simplenews_autoresponder_messages} (nid, autoresponder_id, offset) VALUES (%d, %d, %d)", $node->nid, $autoresponder->id, $offset);
+            }
+          } else {
+            db_query('DELETE FROM {simplenews_autoresponder_messages} WHERE nid = %d AND autoresponder_id = %d', $node->nid, $autoresponder->id);
+          }
+        }
+      }
+      break;
+
+    case 'delete':
+      db_query('DELETE FROM {simplenews_autoresponder_messages} WHERE nid = %d', $node->nid);
+      break;
+
+    case 'load':
+      $offsets = simplenews_autoresponder_get_message_offsets_by_nid($node->nid);
+      $data = array();
+      foreach ($offsets as $autoresponder_id => $offset) {
+        $data['simplenews_autoresponder_offset_' . $autoresponder_id] = $offset;
+      }
+      return $data;
+  }
+}
+
+/**
+ * Returns an associative array of the autoresponder message offsets for the
+ * given node id.
+ * 
+ * A message can belong to more than one autoresponder.  The array that is returned
+ * is an associative array where the key is the autoresponder id and the value is 
+ * the message offset.
+ */
+function simplenews_autoresponder_get_message_offsets_by_nid($nid) {
+  $sql = 'SELECT * FROM {simplenews_autoresponder_messages} WHERE nid = %d';
+  $result = db_query($sql, $nid);
+  $data = array();
+  while ($item = db_fetch_object($result)) {
+    $data[$item->autoresponder_id] = $item->offset;
+  }
+  return $data;
+}
+
+/**
+ * Returns data about terms in Simplenews vocabulary.
+ * 
+ * @return array that can be used as options for select form element.
+ */
+function simplenews_autoresponder_get_tids() {
+  //get simplenews terms
+  $vid = variable_get('simplenews_vid', -1);
+  $terms = db_query("SELECT * FROM {term_data} WHERE vid=%d", $vid);
+  $terms_array = Array();
+  while ($row = db_fetch_array($terms)) {
+    $terms_array[$row['tid']] = t($row['name']);
+  }
+
+  return $terms_array;
+}
+
+/**
+ * Loads one newsletter from DB and returns it as array.
+ * 
+ * @param $id ID of seq. newsletter to be loaded from DB.
+ * 
+ * @return seq. newsletter as array.
+ */
+function simplenews_autoresponder_get_item($id) {
+  $result = db_query("SELECT * FROM {simplenews_autoresponders} WHERE id = %d AND status <> 2", $id);
+  if ($result) {
+    $item = db_fetch_object($result);
+    return array(
+        'name' => $item->name,
+        'enabled' => $item->status,
+        'tid' => $item->tid,
+        'id' => $item->id,
+    );
+  } else {
+    drupal_goto('admin/settings/simplenews_autoresponder');
+  }
+}
+
+/**
+ * Returns all acitve items as an array.
+ * 
+ * @return Array that can be passed to theme_table().
+ */
+function simplenews_get_active_autoresponders() {
+  $data = array();
+  $result = db_query("SELECT * FROM {simplenews_autoresponders} WHERE status != 2 ORDER BY id ASC");
+
+  while ($item = db_fetch_object($result)) {
+    $data[] = $item;
+  }
+
+  return $data;
+}
+
+/**
+ * Returns all active autoresponder subscribers for the given autoresponder id
+ */
+function simplenews_get_autoresponder_subscribers($id) {
+  $sql = "SELECT * FROM {simplenews_autoresponder_subscriptions} s WHERE s.autoresponder_id = %d";
+  $result = db_query($sql, $id);
+  $data = array();
+
+  while ($item = db_fetch_object($result)) {
+    $data[] = $item;
+  }
+
+  return $data;
+}
+
+/**
+ * Returns an autoresponder based on the given term ID
+ */
+function simplenews_get_autoresponder_by_tid($tid) {
+  $sql = "SELECT * FROM {simplenews_autoresponders} WHERE tid = %d";
+  $result = db_fetch_object(db_query($sql, $tid));
+  return $result;
+}
+
+/**
+ * Returns all active autoresponder subscribers for the given autoresponder id
+ */
+function simplenews_get_autoresponder_subscriber($autoresponder_id, $snid) {
+  $sql = "SELECT * FROM {simplenews_autoresponder_subscriptions} s WHERE s.autoresponder_id = %d and s.snid = %d";
+  $result = db_query($sql, $autoresponder_id, $snid);
+  return db_fetch_object($result);
+}
+
+function simplenews_autoresponder_add_subscription($autoresponder_id, $snid) {
+  $subscriber = simplenews_get_autoresponder_subscriber($autoresponder_id, $snid);
+  if (!$subscriber) {
+    db_query("INSERT INTO {simplenews_autoresponder_subscriptions} (autoresponder_id, snid, last_message_nid, last_message_sent) VALUES (%d, %d, %d, %d)", $autoresponder_id, $snid, 0, 0);
+  }
+}
+
+function simplenews_autoresponder_delete_subscription($autoresponder_id, $snid) {
+  db_query("DELETE FROM {simplenews_autoresponder_subscriptions} WHERE autoresponder_id = %d AND snid = %d", $autoresponder_id, $snid);
+}
+
+/**
+ * Implements hook_simplenews_subscribe_user().
+ */
+function simplenews_autoresponder_simplenews_subscribe_user(&$subscription) {
+  foreach ($subscription->tids as $tid) {
+    $autoresponder = simplenews_get_autoresponder_by_tid($tid);
+    if ($autoresponder) {
+      simplenews_autoresponder_add_subscription($autoresponder->id, $subscription->snid);
+    }
+  }
+}
+
+/**
+ * Implements hook_simplenews_unsubscribe_user().
+ */
+function simplenews_autoresponder_simplenews_unsubscribe_user(&$subscription) {
+  foreach ($subscription->tids as $tid) {
+    $autoresponder = simplenews_get_autoresponder_by_tid($tid);
+    if ($autoresponder) {
+      simplenews_autoresponder_delete_subscription($autoresponder->id, $subscription->snid);
+    }
+  }
+}
+
+/**
+ *  Implements hook_views_api().
+ */
+function simplenews_autoresponder_views_api() {
+  return array(
+      'api' => 2,
+      'path' => drupal_get_path('module', 'simplenews_autoresponder') . '/includes/views',
+  );
+}

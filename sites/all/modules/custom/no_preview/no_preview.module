@@ -1,0 +1,18 @@
+<?php
+/*
+ * Created by Geoff Davies - Behind the Page
+ * www.behindthepage.com.au
+ */
+
+
+/**
+ * Kill the PREVIEW Button
+ */
+function no_preview_form_alter( &$form, &$form_state, $form_id) {
+  //print $form_id;
+   $form_id = strpos($form_id, 'node_form' );
+  // Kill the preview button on whole site
+  if ($form_id != FALSE){
+    unset ($form['buttons']['preview']);
+  }
+}

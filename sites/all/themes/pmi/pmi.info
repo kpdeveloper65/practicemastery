@@ -1,0 +1,20 @@
+name = pmi
+description = Tableless multi-column theme designed for pmi
+screenshot = screenshot.png
+version = VERSION
+core = 6.x
+engine = phptemplate
+stylesheets[all][] = style.css
+regions[toolbar] = Toolbar
+regions[left] = Left sidebar
+regions[right] = Right sidebar
+regions[content] = Content
+regions[shop_slider] = shop_slider
+regions[sliderfront] = sliderfront
+regions[upperheader] = Upperheader
+regions[header] = Header
+regions[footer] = Footer
+regions[before_content] = Before Content
+
+stylesheets[all][] = css/ssubnav.css
+stylesheets[all][] = fonts/font-style.css

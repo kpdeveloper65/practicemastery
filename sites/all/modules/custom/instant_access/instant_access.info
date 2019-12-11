@@ -1,0 +1,7 @@
+
+name = Instant Access Redirect
+description = Allows redirecting after sign in and adding users email to an Autoresponder set.
+
+core = 6.x
+version = 6.x-1.x-dev
+package = Custom

@@ -1,0 +1,149 @@
+<?php
+
+function simplenews_autoresponder_install() {
+  drupal_install_schema('simplenews_autoresponder');
+}
+
+function simplenews_autoresponder_uninstall() {
+  drupal_uninstall_schema('simplenews_autoresponder');
+}
+
+function simplenews_autoresponder_schema() {
+  $schema = array();
+  $schema['simplenews_autoresponder_subscriptions'] = array(
+      'description' => t('Simplenews autoresponder subscriptions'),
+      'fields' => array(
+          'id' => array(
+              'description' => t('Identifies the autoresponder subscriber'),
+              'type' => 'serial',
+              'not null' => TRUE,
+          ),
+          'snid' => array(
+              'description' => t("The simplenews subscription record"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'autoresponder_id' => array(
+              'description' => t("The ID of the autoresponder"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'last_message_nid' => array(
+              'description' => t("Node ID of last message sent"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'last_message_sent' => array(
+              'description' => t("Timestamp of last message sent"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+      ),
+      'primary key' => array('id'),
+      'unique keys' => array(
+          'autoresponder_snid' => array('autoresponder_id', 'snid'),
+      )
+  );
+
+  $schema['simplenews_autoresponder_messages_sent'] = array(
+      'description' => t('Simplenews autoresponder messages'),
+      'fields' => array(
+          'id' => array(
+              'description' => t('Identifies the autoresponder subscriber'),
+              'type' => 'serial',
+              'not null' => TRUE,
+          ),
+          'subscription_id' => array(
+              'description' => t("The autoresponder subscription ID"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'message_id' => array(
+              'description' => t("The ID of the autoresponder message"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'timestamp' => array(
+              'description' => t("How many days after the user subscribed should this message be sent?"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+      ),
+      'primary key' => array('id'),
+  );
+
+  $schema['simplenews_autoresponder_messages'] = array(
+      'description' => t('Simplenews autoresponder messages'),
+      'fields' => array(
+          'id' => array(
+              'description' => t('Identifies the autoresponder subscriber'),
+              'type' => 'serial',
+              'not null' => TRUE,
+          ),
+          'nid' => array(
+              'description' => t("The simplenews subscription record"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'autoresponder_id' => array(
+              'description' => t("The ID of the autoresponder"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'offset' => array(
+              'description' => t("How many days after the user subscribed should this message be sent?"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+      ),
+      'primary key' => array('id'),
+      'unique keys' => array(
+          'autoresponder_nid' => array('autoresponder_id', 'nid'),
+      )
+  );
+
+  $schema['simplenews_autoresponders'] = array(
+      'description' => t('Simplenews autoresponders'),
+      'fields' => array(
+          'id' => array(
+              'description' => t('Unique autoresponder ID'),
+              'type' => 'serial',
+              'not null' => TRUE,
+          ),
+          'name' => array(
+              'type' => 'varchar',
+              'length' => 128,
+              'not null' => TRUE,
+              'default' => '',
+              'description' => 'Human name for this sequenced newsletter.',
+          ),
+          'tid' => array(
+              'description' => t("The simplenews newsletter taxonomy term ID"),
+              'type' => 'int',
+              'not null' => TRUE,
+          ),
+          'status' => array(
+              'description' => t("Indicates whether the autoresponder is active"),
+              'type' => 'int',
+              'size' => 'tiny',
+              'not null' => TRUE,
+              'default' => 1,
+          ),
+      ),
+      'primary key' => array('id'),
+      'unique keys' => array(
+          'tid' => array('tid'),
+      ),
+  );
+
+  return $schema;
+}
+
+/**
+ * Remove 'sort' column from {simplenews_autoresponders}
+ */
+function simplenews_autoresponder_update_6000() {
+  $items = array();
+  $items[] = update_sql('ALTER TABLE {simplenews_autoresponders} DROP COLUMN sort');
+  return $items;
+}

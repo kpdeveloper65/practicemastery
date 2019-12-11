@@ -1,0 +1,14 @@
+
+/* put your custom CSS in here */
+
+#phpbbforum-page {
+}
+
+#phpbbforum-page #wrapcentre {
+  margin: 0;
+}
+
+table {
+  border-collapse: separate;
+  margin: 0;
+}

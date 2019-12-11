@@ -1,0 +1,1279 @@
+<?php
+// $Id: phpbbforum.module,v 1.60 2011/02/13 14:05:54 vb Exp $
+/**
+ * @file
+ * phpBBforum module.
+ * @copyright  Copyright (C) 2007-2011 Vadim G.B. (http://vgb.org.ru)
+ */
+
+////////////////////////////////////////////////////////////////////////////////
+define('PHPBB_DRUPAL_MODULE_VERSION', 6);
+define('PHPBB_DISABLE_MODULE', 0); // Only use in emergency
+define('PHPBB_DISABLE_AUTO_LOGOUT', 0); // Only use if you are not able to login
+define('PHPBB_MODULE_DEBUG', 0); // Do not change!
+////////////////////////////////////////////////////////////////////////////////
+
+define('PHPBB_DRUPAL_MODULE', 'phpbbforum');
+define('PHPBB_DRUPAL_MODULE_TAG', 'phpBBforum');
+
+define('PHPBB_API_FILE', 'phpbb_api.php');
+define('PHPBB_API_INCLUDE_PATH', 'includes/phpbbdrupalbridge/');
+define('PHPBB_PATH', '/phpBB3/');
+define('PHPBB_PAGE', 'phpbbforum');
+
+define('PHPBB_SYNC_TO_PHPBB', 'to phpBB');
+define('PHPBB_SYNC_TO_DRUPAL', 'to Drupal');
+define('PHPBB_SYNC_TO_MASTER', 'to master');
+
+@define('A_SYNC_TO_UNDEFINED', 0);
+@define('A_SYNC_TO_ME', 1);
+@define('A_SYNC_TO_EXTERNAL', 2);
+@define('A_SYNC_TO_MASTER', 3);
+@define('A_SYNC_TO_FINISHED', -1);
+
+define('PHPBB_NUM_RECENT_POSTS', 10);
+define('PHPBB_NUM_RECENT_TOPICS', 10);
+
+define('PHPBB_RECENT_DELIMITER_SPACE', " ");
+define('PHPBB_RECENT_DELIMITER_BR', "<br />");
+
+define('PHPBB_COOKIELENGTH', 1440);
+define('PHPBB_NUM_WHOS_ONLINE', 9999);
+define('PHPBB_NUM_TOP_POSTERS', 5);
+
+require_once(dirname(__FILE__) . '/phpbbforum.theme.inc');
+require_once(dirname(__FILE__) . '/phpbbforum.pages.inc');
+require_once(dirname(__FILE__) . '/phpbbforum.hooks.inc');
+
+global $phpbb_root_path, $_drupal_base_path, $site_base_url, $site_phpbb_page, $_phpbb_base_path,
+  $_phpbb_forum_url, $site_forum_url, $_phpbb_integration_mode, $_phpbb_acp_integration_mode,
+  $_phpbb_result, $_phpbb_embed_mode, $phpbb_hook;
+// Needed for handle_message_list_actions()
+global $refresh, $submit, $preview;
+
+_phpbbforum_set_globals();
+
+function _phpbbforum_set_globals() {
+  global $phpbb_config, $base_url, $base_path, $base_root, $_drupal_base_path, $phpbb_root_path, $_phpbb_base_path, $_phpbb_result, $_phpbb_embed_mode,
+    $site_base_url, $site_phpbb_page, $site_forum_url, $_phpbb_integration_mode, $_phpbb_acp_integration_mode,
+    $site_phpbb_page_base, $site_forum_url_base, $site_phpbb_page_lang, $site_forum_url_lang, $language;
+
+  $site_base_url = $base_url;
+  $site_phpbb_page_lang = $site_phpbb_page_base = $site_phpbb_page = drupal_get_path_alias(PHPBB_PAGE);
+
+  if (variable_get('phpbbforum_language', 0) && $language->prefix) {
+    $site_phpbb_page_lang = $language->prefix . '/' . $site_phpbb_page;
+  }
+
+  $_drupal_base_path = str_replace($_SERVER['SCRIPT_NAME'], '', $_SERVER['SCRIPT_FILENAME']);
+  //$_drupal_base_path = $_SERVER['DOCUMENT_ROOT'];//realpath('.');
+  //if ($base_path != '/' && $base_path != '\'') {
+  //  $_drupal_base_path .= $base_path;
+  //}  
+
+  $phpbb_root_path = variable_get('phpbbforum_root', $_drupal_base_path . PHPBB_PATH);
+
+  $_phpbb_base_path = substr($phpbb_root_path, strlen($_drupal_base_path) + 1);
+
+  $_phpbb_integration_mode = variable_get("phpbbforum_page_frame", 0);
+  $_phpbb_acp_integration_mode = variable_get("phpbbforum_page_frame_acp", 0);
+
+  $_phpbb_embed_mode = array();
+
+  $site_forum_url_base = $base_url . '/' . $site_phpbb_page;
+  $site_forum_url_lang = $site_forum_url = $base_url . '/' . $site_phpbb_page_lang;
+
+  if (variable_get('phpbbforum_submission', true)) {
+    module_load_include('discuss.inc', 'phpbbforum');
+  }
+  module_load_include('sync.inc', 'phpbbforum');
+  if (module_exists('profile') || module_exists('content_profile')) {
+    module_load_include('profile.inc', 'phpbbforum');
+  }
+  module_load_include('theme.custom.inc', 'phpbbforum');
+}
+
+function _phpbbforum_settings() {
+  if (PHPBB_DISABLE_MODULE) {
+    return false;
+  }
+  $phpbb_root_path = variable_get('phpbbforum_root', '');
+  $phpbbsettings = $phpbb_root_path . 'config.php';
+  $phpbbinc = variable_get('phpbbforum_inc', '');
+  $phpbbapifile = variable_get('phpbbforum_api_file', PHPBB_API_FILE);
+  $phpbbapi = $phpbbinc . $phpbbapifile;
+  if (file_exists($phpbbapi) && file_exists($phpbbsettings)) {
+    require_once($phpbbapi);
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+
+function phpbbforum_help($path, $arg) {
+  $output = '';
+  switch ($path) {
+    case 'admin/help#phpbbforum':
+      break;
+    case 'admin/modules#description':
+      $output .= t('This module provides integration with phpBB3 Forum.');
+      break;
+  }
+  return $output;
+}
+
+function phpbbforum_menu() {
+  $items = array();
+
+  if (variable_get("phpbbforum_page_frame", 0) == '1' || variable_get("phpbbforum_page_frame", 0) == '2') {
+    $items['phpbbforum'] = array(
+      //'title' => 'phpBB Forum',
+      'page callback' => 'phpbbforum_page',
+      'access callback' => 'user_access',
+      'access arguments' => array('access phpBB forum'),
+      'type' => MENU_SUGGESTED_ITEM,
+      //'type' => MENU_NORMAL_ITEM,
+    );
+  }
+
+  $items['admin/settings/phpbbforum'] = array(
+    'title' => 'phpBBforum settings',
+    'description' => 'Change phpBBforum integration settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('phpbbforum_admin_settings'),
+    'access arguments' => array('administer site configuration'),
+    'file' => 'phpbbforum.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['phpbbforum/discuss/new/%'] = array(
+    'page callback' => 'phpbbforum_discuss_new',
+    'page arguments' => array(3),
+    'access arguments' => array('create phpBB forum topics'),
+    'file' => 'phpbbforum.discuss.inc',  
+    'type' => MENU_CALLBACK,
+  );
+  $items['phpbbforum/discuss/create/%'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('phpbbforum_discuss_create_form', 3),
+    'access arguments' => array('create phpBB forum topics'),
+    'file' => 'phpbbforum.discuss.inc',  
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+function phpbbforum_perm() {
+  return array('access phpBB forum', 'access phpBB comments', 'post phpBB comments', 'create phpBB forum topics');
+}
+
+/**
+ * Implemantation of hook_nodeapi()
+ */
+function phpbbforum_nodeapi(&$node, $op, $teaser, $page) {
+
+  switch ($op) {
+    case 'validate':
+      if (variable_get('phpbbforum_submission', true) && variable_get('phpbbforum_submission_' . $node->type, false)) {
+        phpbbforum_node_validate($node, $teaser);
+      }
+      break;
+    case 'view':
+      phpbbforum_node_view($node);
+      break;
+    case 'insert':
+    case 'update':
+      if (module_exists('content_profile') && is_content_profile($node)) {
+        global $user, $phpbb_user;
+        if (!_phpbbforum_settings()) {
+          return;
+        }
+        phpbb_api_session_begin();
+        $account = user_load($node->uid);
+        $phpbb_user_data = $phpbb_user->data;
+        if (phpbb_api_get_user($account->name, '')) {
+          phpbbforum_update_user_profile($op, PHPBB_SYNC_TO_PHPBB, $account, array(), $node);
+          if ($user->name != $account->name) {
+            $phpbb_user->data = $phpbb_user_data;
+          }
+        }
+      }
+
+      if (!variable_get('phpbbforum_submission', true) || !variable_get('phpbbforum_submission_' . $node->type, false)) {
+        break;
+      }
+      if (empty($node->phpbbforum_forumid)) {
+        break;
+      }
+
+      phpbbforum_dicsuss_node_insert($node);
+      
+      break;
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function phpbbforum_form_alter(&$form, $form_state, $form_id) {
+  if ($form_id == 'user_login_block' || $form_id == 'user_login') {
+    if (!_phpbbforum_settings()) {
+      return;
+    }
+    $form['#validate'] = phpbbforum_login_validators($form);
+    phpbbforum_user_login_form_alter($form);
+  }
+  elseif ($form_id == 'node_type_form' && isset($form['identity']['type'])) {
+    if (variable_get('phpbbforum_submission', true)) {
+      phpbbforum_discuss_node_type_form_alter($form, $form_state, $form_id);
+    }
+  }
+  // If the type and node field are set this may be a node edit form.
+  elseif (isset($form['type']) && isset($form['#node']) && $form['type']['#value'] . '_node_form' == $form_id) {
+    if (variable_get('phpbbforum_submission', true) && variable_get('phpbbforum_submission_' . $form['type']['#value'], 0) && user_access('create phpBB forum topics')) {
+      phpbbforum_discuss_node_edit_form_alter($form, $form_state, $form_id);
+    }
+  }
+  return $form;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function phpbbforum_user_login_form_alter(&$form) {
+  if (!_phpbbforum_settings()) {
+    return;
+  }
+  $form['#validate'] = phpbbforum_login_validators($form);
+  phpbb_api_session_begin();
+  // Get forum URL
+  global $phpbb_config;
+  $phpbb_url = $phpbb_config['forum_url'];
+  $phpbb_master = variable_get('phpbbforum_master', 1);
+  if ($phpbb_master && !empty($phpbb_url)) {
+    global $site_base_url, $site_forum_url, $phpEx, $_phpbb_integration_mode;
+    if ($_phpbb_integration_mode == 1 || $_phpbb_integration_mode == 2) {
+      $phpbb_url = $site_forum_url;
+    }
+    $new_account = append_sid("{$phpbb_url}/ucp.$phpEx", 'mode=register');
+    $new_password = append_sid("{$phpbb_url}/ucp.$phpEx", 'mode=sendpassword');
+    $items = array();
+    if (variable_get('user_register', 1)) {
+      $items[] = l(t('Create new account'), $new_account, array('title' => t('Create a new user account.')));
+    }
+    $items[] = l(t('Request new password'), $new_password, array('title' => t('Request new password via e-mail.')));
+    $form['links'] = array('#value' => theme('item_list', $items));
+  }
+  return $form;
+}
+
+
+function phpbbforum_block($op = 'list', $delta = 0, $edit = array()) {
+  global $user;
+
+  if ($op == 'list') {
+    $blocks[0]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('Hidden authentication');
+    $blocks[0]['cache'] = BLOCK_NO_CACHE;
+    $blocks[1]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('Personal messages');
+    $blocks[1]['cache'] = BLOCK_NO_CACHE;
+    $blocks[2]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('Online forum users');
+    $blocks[2]['cache'] = BLOCK_NO_CACHE;
+    $blocks[3]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('Recent forum topics');
+    $blocks[3]['cache'] = BLOCK_NO_CACHE;
+    $blocks[4]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('New forum posts');
+    $blocks[4]['cache'] = BLOCK_NO_CACHE;
+    $blocks[5]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('Forum statistics');
+    $blocks[5]['cache'] = BLOCK_NO_CACHE;
+    $blocks[6]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('Top posters');
+    $blocks[6]['cache'] = BLOCK_NO_CACHE;
+    $blocks[7]['info'] = PHPBB_DRUPAL_MODULE_TAG . ': ' . t('New forum topics');
+    $blocks[7]['cache'] = BLOCK_NO_CACHE;
+
+    return $blocks;
+  }
+  elseif ($op == 'view') {
+
+    $block = array();
+
+    if (!_phpbbforum_settings()) {
+      return $block;
+    }
+
+    switch ($delta) {
+      case 0:
+        _phpbbforum_authenticate_user();
+        return $block;
+
+      case 1:
+        global $user;
+        if ($user->uid) {
+          $c = phpbbforum_pm();
+          $block['subject'] = t('Personal messages');
+          $block['content'] = $c;
+        }
+        return $block;
+
+      case 2:
+        $c = phpbbforum_whos_online();
+        $block['subject'] = t('Online forum users');
+        $block['content'] = $c;
+        return $block;
+
+      case 3:
+        $c = phpbbforum_recent_topics();
+        $block['subject'] = t('Recent forum topics');
+        $block['content'] = $c;
+        return $block;
+
+      case 4:
+        $c = phpbbforum_recent_posts();
+        $block['subject'] = t('New forum posts');
+        $block['content'] = $c;
+        return $block;
+
+      case 5:
+        $c = phpbbforum_board_stats();
+        $block['subject'] = t('Forum statistics');
+        $block['content'] = $c;
+        return $block;
+
+      case 6:
+        $c = phpbbforum_topposter();
+        $block['subject'] = t('Top posters');
+        $block['content'] = $c;
+        return $block;
+
+      case 7:
+        $c = phpbbforum_recent_new_topics();
+        $block['subject'] = t('New forum topics');
+        $block['content'] = $c;
+        return $block;
+    }
+  }
+}
+
+function _phpbbforum_watchdog($message = '', $variables = array(), $severity = WATCHDOG_NOTICE, $link = NULL) {
+  if (empty($message)) {
+    return;
+  }
+  $display = variable_get("phpbbforum_log_msg", 0);
+  if (!$display) {
+    return;
+  }
+  watchdog(PHPBB_DRUPAL_MODULE, $message, $variables, $severity, $link);
+  return;
+}
+
+function _phpbbforum_set_message($message, $variables = array(), $type = 'status', $repeat = TRUE) {
+  if (empty($message)) {
+    return;
+  }
+  $display = variable_get("phpbbforum_set_msg", 0);
+  if (!$display) {
+    return;
+  }
+  if (count($variables) != 0) {
+    $message = t($message, $variables);
+  }
+  drupal_set_message($message, $type, $repeat);
+  return;
+}
+
+function _phpbbforum_msg($op = 'info', $update = false, $msg = '', $msgt = '', $account = '', $edit = array()) {
+
+  global $phpbb_config, $phpbb_user, $user;
+  $message = '';
+
+  $name = (empty($account) ? $phpbb_user->data['username'] : $account->name);
+
+  if ($op == 'update' || $op == 'after_update' || $op == 'insert' || $op == 'login' || $op == 'login2' || $op == 'view' || $op == 'categories') {
+    if (count($edit) != 0) {
+      $s = '';
+      foreach ($edit as $var => $val) {
+        if ($var == 'pass' || $var == 'user_password') {
+          $s .= "$var => ****, ";
+        }
+        else {
+          if ($msgt == PHPBB_SYNC_TO_PHPBB) {
+            $var = variable_get('phpbbforum_map_' . $var, '');
+          }
+          if (!empty($var)) {
+            // 01234567890123
+            // profile_user_
+            if (substr($var, 0, 8) == "profile_") {
+              $var = substr($var, 8);
+            }
+            elseif (substr($var, 0, 6) == 'field_') {
+              $var = substr($var, 6);
+            }
+            if (($var == 'user_gender' || $var == 'gender') && $msgt == PHPBB_SYNC_TO_PHPBB) {
+              if ($val == '1') {
+                $val = t('Male');
+              }
+              elseif ($val == '2') {
+                $val = t('Female');
+              }
+            }
+            $s .= "$var => $val, ";
+          }
+        }
+      }
+    }
+
+    if ($update && count($edit) != 0) {
+      $message = t('Data %data for %name synced', array('%data' => $s, '%name' => $name));
+    }
+    elseif (!$update && count($edit) != 0) {
+      $message = t('Unable to sync data %data for %name', array('%data' => $s, '%name' => $name));
+    }
+    else {
+      $message = t('No data to sync for %name', array('%name' => $name));
+    }
+    $message = $msg . ' ' . $message . ' ' . $msgt . '.';
+  }
+  else {
+    /*if (PHPBB_MODULE_DEBUG) {
+      $message = $op . ': ' . $msg . ' ' . $message . ' ' . $msgt;
+    }*/
+  }
+  _phpbbforum_set_message($message);
+  
+  return $message;
+}
+
+
+
+
+function _phpbbforum_user_edit_validate($uid, &$edit) {
+
+  if (!_phpbbforum_settings()) {
+    return;
+  }
+
+  $user = user_load(array('uid' => $uid));
+
+  // Validate the username:
+  if (user_access('change own username') || user_access('administer users') || !$user->uid) {
+    if (!empty($edit['name']) && $edit['name'] != $user->name) {
+      if (!phpbb_api_user_name_validate($edit['name'])) {
+        form_set_error('name', t('The name %name is not valid in phpBB.', array('%name' => $edit['name'])));
+      }
+    }
+  }
+
+  // Validate the e-mail address:
+  if (!empty($edit['mail']) && $edit['mail'] != $user->mail) {
+    if (!phpbb_api_user_email_validate($edit['mail'])) {
+      form_set_error('mail', t('The e-mail address %email is not valid in phpBB.', array('%email' => $edit['mail'])));
+    }
+  }
+
+  if (!empty($edit['pass'])) {
+    if (!variable_get('user_email_verification', TRUE) || user_access('administer users')) {
+      if (!phpbb_api_user_password_validate($edit['pass'])) {
+        form_set_error('pass', t('The password %pass is not valid in phpBB.', array('%pass' => $edit['pass'])));
+      }
+    }
+  }
+}
+
+
+function phpbbforum_user($op, &$edit, &$account, $category = NULL) {
+  global $phpbb_config, $phpbb_user, $user;
+
+  if (!_phpbbforum_settings()) {
+    return;
+  }
+
+  if ($op == 'logout') {
+    if (phpbb_api_authenticate_user()) {
+      // Update data
+      phpbbforum_update_user($op, PHPBB_SYNC_TO_DRUPAL, $account, '', '', $account->mail);
+    }
+    phpbb_api_logout();
+    $message = 'Session closed for %name.';
+    _phpbbforum_watchdog($message, array('%name' => $account->name));
+    variable_set('phpbbforum_user_login', 0);
+  }
+  elseif ($op == 'login') {
+
+    $reset = false;
+    if ($_REQUEST['form_id'] == 'user_pass_reset' && $_REQUEST['op'] == 'Log in') {
+      $reset = true;
+      phpbb_api_session_begin();
+      $edit['pass'] = substr($account->pass, 0, $phpbb_config['max_pass_chars']);
+      $edit['name'] = $account->name;
+    }
+    elseif (module_exists('logintoboggan') && empty($edit)) {
+      if (!variable_get('user_email_verification', TRUE) &&
+        variable_get('logintoboggan_immediate_login_on_register', TRUE)) {
+        $edit['pass'] = $account->password;
+        $edit['name'] = $account->name;
+      }
+    }
+
+    $options = array();
+    $openid_login = !empty($_SESSION['openid']['user_login_values']['openid_identifier']);
+    if ($openid_login) {
+      $options['openid_identifier'] = $_SESSION['openid']['user_login_values']['openid_identifier'];
+      $edit['pass'] = user_password(8);
+    }
+
+    $pass = $edit['pass'];
+    $name = $edit['name'];
+
+    if (!empty($name) && !empty($pass)) {
+
+      if (phpbb_api_login($name, $pass, $options)) {
+        if (variable_get('phpbbforum_user_ban', 0) && phpbb_is_banned()) {
+          $message = 'The phpBB username %name is banned in phpBB.';
+          $var = array('%name' => $name);
+          _phpbbforum_watchdog($message, $var);
+          _phpbbforum_set_message($message, $var);
+        }
+        else {
+          //if (PHPBB_MODULE_DEBUG)
+          //  _phpbbforum_msg('phpbbforum_user login '. $name .' id='. $phpbb_user->data['user_id']);
+          if (!$openid_login) {
+            // Update
+            $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_DRUPAL, $account, '', '', $account->mail, $edit);
+          }
+          //phpbb_api_get_user($name, $pass);
+          //if ($phpbb_user->data['user_id'] == ANONYMOUS)
+          //	phpbb_api_login((int) variable_get('phpbbforum_cookie_length', PHPBB_COOKIELENGTH), $name, $pass);
+          variable_set('phpbbforum_user_login', 1);
+        }
+      }
+      else {
+        if (phpbb_api_get_user($name, '')) {
+
+          if (PHPBB_MODULE_DEBUG) {
+            $message = 'User account: ' . $name . ' found but passwords mismatch in phpBB.';
+            //_phpbbforum_watchdog($message);
+            _phpbbforum_set_message($message);
+          }
+
+          if (variable_get('phpbbforum_user_ban', 0) && phpbb_is_banned($phpbb_user->data['user_id'])) {
+            $message = 'The phpBB username %name is banned in phpBB.';
+            $var = array('%name' => $name);
+            _phpbbforum_watchdog($message, $var);
+            _phpbbforum_set_message($message, $var);
+          }
+          else {
+            //if (PHPBB_MODULE_DEBUG)
+            //_phpbbforum_set_message('User account: '. $name .' pass='. $pass .' update from Drupal');
+            if ($openid_login) {
+              $update = true;
+            }
+            else {
+              $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_PHPBB, $account, '', $pass, '');
+            }
+            if ($update) {
+              //if (PHPBB_MODULE_DEBUG)
+              //_phpbbforum_set_message('User account: '. $name .' pass='. $pass .' updated from Drupal');
+              if (phpbb_api_login($name, $pass, options)) {
+                //if (PHPBB_MODULE_DEBUG)
+                //_phpbbforum_set_message('User account: '. $name .' pass='. $pass .' found in phpBB');
+                if (!$reset && !$openid_login) {
+                  // Update
+                  $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_MASTER, $account, '', '', $account->mail, $edit);
+                }
+
+                //phpbb_api_get_user($name, $pass);
+                //phpbb_api_login((int) variable_get('phpbbforum_cookie_length', PHPBB_COOKIELENGTH), $name, $pass);
+                variable_set('phpbbforum_user_login', 1);
+              }
+            }
+          }
+        }
+        else {
+          if (variable_get('phpbbforum_user_ban', 0) && phpbb_is_banned()) {
+            $message = 'The phpBB username %name is banned in phpBB.';
+            $var = array('%name' => $name);
+            _phpbbforum_watchdog($message, $var);
+            _phpbbforum_set_message($message, $var);
+          }
+          else {
+            $data = array('group_id' => variable_get('phpbbforum_user_group', phpbb_get_user_group_id('REGISTERED')));
+            if (!phpbb_api_register($name, $pass, $account->mail, $data)) {
+              $message = 'Unable to create new phpBB user: %name error: %err';
+              $var = array(
+                '%name' => $name,
+                '%err' => $phpbb_config['error_msg'],
+              );
+              //_phpbbforum_watchdog($message, $var);
+              _phpbbforum_set_message($message, $var);
+            }
+            else {
+              $message = 'User account: %name created in phpBB.';
+              $var = array('%name' => $name);
+              _phpbbforum_watchdog($message, $var);
+              _phpbbforum_set_message($message, $var);
+              // Update
+              if (phpbb_api_get_user($name, $pass)) {
+                phpbbforum_update_user($op, PHPBB_SYNC_TO_PHPBB, $account, '', '', '', $edit);
+                if (phpbb_api_login($name, $pass)) {
+                  //phpbb_api_login((int) variable_get('phpbbforum_cookie_length', PHPBB_COOKIELENGTH), $name, $pass);
+                  variable_set('phpbbforum_user_login', 1);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (PHPBB_MODULE_DEBUG) {
+      _phpbbforum_set_message('User account: ' . $name . ' pass=' . $pass . ' login from Drupal');
+    }
+  }
+  elseif ($op == 'validate' && $category == 'account') {
+    return _phpbbforum_user_edit_validate(arg(1), $edit);
+  }
+  /*
+   elseif ($op == 'submit') {
+   if (PHPBB_MODULE_DEBUG)
+   _phpbbforum_set_message('submit user=' . $edit['name'] .' uid=' . $user->uid .' pass='. $edit['pass'] .' mail='. $edit['mail']);
+   //return _phpbbforum_user_edit_validate(arg(1), $edit);
+   }
+   */
+  elseif ($op == 'insert') {
+
+    $openid_login = !empty($_SESSION['openid']['user_login_values']['openid_identifier']);
+    if ($openid_login) {
+      $edit['pass'] = user_password(8);
+    }
+    $pass = $edit['pass'];
+    $name = $edit['name'];
+    $mail = $edit['mail'];
+
+    $phpbb_user_data = $phpbb_user->data;
+
+    if (phpbb_api_get_user($account->name, '')) { // user exists in PHPBB
+      //if (PHPBB_MODULE_DEBUG)
+      //  _phpbbforum_set_message('User account: '. $account->name .' pass='. $pass .' found in phpBB');
+      /*
+       if (!empty($pass)) {
+       $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_PHPBB, $account, $account->name, $pass, '');
+       if ($update) {
+       if (phpbb_api_get_user($account->name, $pass)) {
+       $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_MASTER, $account, $account->name, '', $edit['mail'], $edit);
+       if ((empty($user->name) || $user->name == $account->name) && phpbb_api_get_user($account->name, $pass)) {
+       //phpbb_api_login((int) variable_get('phpbbforum_cookie_length', PHPBB_COOKIELENGTH), $name, $pass);
+       variable_set('phpbbforum_user_login', 1);
+       }
+       }
+       }
+       }
+       */
+    }
+    else {
+      if (empty($pass)) {
+        $pass = user_password(8);
+      }
+      $data = array('group_id' => variable_get('phpbbforum_user_group', phpbb_get_user_group_id('REGISTERED')));
+      if (!phpbb_api_register($account->name, $pass, $account->mail, $data)) {
+        $message = 'Unable to create new phpBB user: %name error: %err';
+        $var = array(
+          '%name' => $account->name,
+          '%err' => $phpbb_config['error_msg'],
+        );
+        //_phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+      }
+      else {
+        $message = 'User account: %name created in phpBB.';
+        $var = array('%name' => $account->name);
+        _phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+
+        if (phpbb_api_get_user($account->name, $pass)) {
+          //if (PHPBB_MODULE_DEBUG)
+          //  _phpbbforum_set_message('*User account: '. $account->name .' pass='. $pass .' found');
+          if (!$openid_login) {
+            phpbbforum_update_user($op, PHPBB_SYNC_TO_PHPBB, $account, '', '', '', $edit);
+          }
+        }
+        if ((empty($user->name) || $user->name == $account->name) && phpbb_api_get_user($account->name, $pass)) {
+          //phpbb_api_login((int) variable_get('phpbbforum_cookie_length', PHPBB_COOKIELENGTH), $name, $pass);
+          variable_set('phpbbforum_user_login', 1);
+        }
+      }
+    }
+
+    if (!empty($user->name) && ($user->name != $account->name)) {
+      //phpbb_api_get_user($user->name, '');
+      $phpbb_user->data = $phpbb_user_data;
+    }
+  }
+  elseif ($op == 'update' && $category == 'account') {
+    //if (PHPBB_MODULE_DEBUG)
+    //  _phpbbforum_set_message('update account and personal info');
+
+    /*
+     if (variable_get('phpbbforum_user_login_external', 0)) {
+     variable_set('phpbbforum_user_login_external', 0);
+     return;
+     }
+     */
+
+    $pass = $edit['pass'];
+    $name = $edit['name'];
+    $mail = $edit['mail'];
+
+    $updatename = ($account->name != $edit['name']) ? $name : '';
+    $updatemail = ($account->mail != $edit['mail']) ? $mail : '';
+
+    $phpbb_user_data = $phpbb_user->data;
+
+    if (phpbb_api_get_user($account->name, '')) {
+      /*
+       if (!empty($updatename) && empty($pass)) {
+       $message = 'Please change the password too. Otherwise %name will not be able to login in phpBB.';
+       $var = array('%name' => $updatename);
+       _phpbbforum_set_message($message, $var);
+
+       if ($user->name != $account->name && empty($updatemail))
+       phpbbforum_update_user($op, PHPBB_SYNC_TO_PHPBB, $account, $updatename, $pass, $updatemail, $edit);
+       else
+       $edit['name'] = $account->name;
+       }
+       else {
+       */
+      /*
+       if (PHPBB_MODULE_DEBUG) {
+       $message = 'User account changed for %name.';
+       $var = array('%name' => $account->name);
+       //_phpbbforum_watchdog($message, $var);
+       _phpbbforum_set_message($message, $var);
+       $message = 'User account changed to %name, email=%mail, pass=%pass.';
+       $var = array('%name' => $updatename, '%mail' => $updatemail, '%pass' => $pass);
+       //_phpbbforum_watchdog($message, $var);
+       _phpbbforum_set_message($message, $var);
+       }
+       */
+      //if (PHPBB_MODULE_DEBUG)
+      //  _phpbbforum_set_message('*User:'. $user->name .' account:'. $account->name .' found');
+      // Sync account changes back to PHPBB
+      $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_PHPBB, $account, $updatename, $pass, $updatemail, $edit);
+      if ($user->name == $account->name) {
+        if (empty($name)) {
+          $name = $account->name;
+        }
+        if (phpbb_api_get_user($name, $pass)) {
+          //phpbb_api_login((int) variable_get('phpbbforum_cookie_length', PHPBB_COOKIELENGTH), $name, $pass);
+          variable_set('phpbbforum_user_login', 1);
+        }
+      }
+      //}
+    }
+    elseif (variable_get('phpbbforum_user_login', 0) && $pass != '' && !empty($updatename)) {
+      //if (PHPBB_MODULE_DEBUG)
+      //  _phpbbforum_set_message('phpbbforum_user insert pass != _ && !empty(updatename)');
+      $data = array('group_id' => variable_get('phpbbforum_user_group', phpbb_get_user_group_id('REGISTERED')));
+      if (!phpbb_api_register($updatename, $pass, $mail, $data)) {
+        $message = 'Unable to create new phpBB user: %name error: %err';
+        $var = array(
+          '%name' => $updatename,
+          '%err' => $phpbb_config['error_msg'],
+        );
+        //_phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+        $edit['name'] = $account->name;
+      }
+      else {
+        $message = 'User account: %name created in phpBB.';
+        $var = array('%name' => $updatename);
+        _phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+        // Update
+        $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_PHPBB, $account, '', '', '', $edit);
+        if ($user->name == $account->name && phpbb_api_get_user($name, $pass)) {
+          //phpbb_api_login((int) variable_get('phpbbforum_cookie_length', PHPBB_COOKIELENGTH), $name, $pass);
+          variable_set('phpbbforum_user_login', 1);
+        }
+      }
+    }
+    elseif (!empty($updatename)) {
+
+      $id = phpbb_api_get_user_id($updatename);
+      if (id != 0) {
+        $message = 'User account: %name exists in phpBB. Now it is the same user.';
+        $var = array('%name' => $updatename);
+        //_phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+        //$edit['name'] = $account->name;
+        phpbbforum_update_user($op, PHPBB_SYNC_TO_MASTER, $account, $updatename, '', $updatemail, $edit);
+      }
+    }
+
+    if ($user->name != $account->name) {
+      //phpbb_api_get_user($user->name, '');
+      $phpbb_user->data = $phpbb_user_data;
+    }
+
+  }
+  //elseif ($op == 'after_update' && !empty($category) && $category != 'account' && $category != 'login') {
+  elseif ($op == 'after_update' && $category != 'account' && $category != 'login') {
+    //  && $category != 'login' avoid after_update from user_save with $category == 'login'
+    //if (PHPBB_MODULE_DEBUG) _phpbbforum_set_message('phpbbforum_user after update');
+
+    if (!empty($category)) {
+
+      $phpbb_user_data = $phpbb_user->data;
+
+      if (phpbb_api_get_user($account->name, '')) {
+        //if (PHPBB_MODULE_DEBUG)
+        //  _phpbbforum_set_message('User update profile: '. $account->name .' profile='. $account->profile_username);
+
+        // Sync profile changes back to PHPBB
+        phpbbforum_update_user_profile($op, PHPBB_SYNC_TO_PHPBB, $account);
+      }
+
+      if ($user->name != $account->name) {
+        //phpbb_api_get_user($user->name, '');
+        $phpbb_user->data = $phpbb_user_data;
+      }
+    }
+  }
+  elseif ($op == 'view' && empty($category)) {
+
+    $phpbb_user_data = $phpbb_user->data;
+
+    $update = false;
+    if (/*$user->name == $account->name &&*/ phpbb_api_get_user($account->name, '')) {
+      //if (PHPBB_MODULE_DEBUG)
+      //  _phpbbforum_set_message('User update view: '. $account->name .' profile='. $account->profile_username);
+      // Sync data and profile changes
+      $update = phpbbforum_update_user($op, PHPBB_SYNC_TO_DRUPAL, $account, '', '', $account->mail, $edit);
+    }
+
+    if ($user->name != $account->name) {
+      //phpbb_api_get_user($user->name, '');
+      $phpbb_user->data = $phpbb_user_data;
+    }
+  }
+  elseif ($op == 'delete') {
+
+    $phpbb_user_data = $phpbb_user->data;
+
+    if (phpbb_api_get_user($account->name, '')) {
+      //if (PHPBB_MODULE_DEBUG)
+      //  _phpbbforum_set_message('User delete: '. $account->name .' id='. $phpbb_user->data['user_id']);
+
+      $user_id = $phpbb_user->data['user_id'];
+
+      $update = phpbb_api_user_delete($user_id);
+      if ($update) {
+        $message = 'User account: %name has been deleted in phpBB.';
+        $var = array('%name' => $account->name);
+        _phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+      }
+    }
+
+    if ($user->name != $account->name) {
+      //phpbb_api_get_user($user->name, '');
+      $phpbb_user->data = $phpbb_user_data;
+    }
+  }
+  elseif ($op == 'login2') {
+    _phpbbforum_authenticate_user();
+  }
+
+}
+
+function phpbbforum_login_validators($form) {
+  if (is_array($form['#validate'])) {
+    $key = array_search('user_login_authenticate_validate', $form['#validate']);
+    if ($key !== false) {
+      unset($form['#validate'][$key]);
+    }
+    $key = array_search('user_login_name_validate', $form['#validate']);
+    if ($key !== false) {
+      unset($form['#validate'][$key]);
+    }
+    $key = array_search('user_login_final_validate', $form['#validate']);
+    if ($key !== false) {
+      unset($form['#validate'][$key]);
+    }
+    $validators = $form['#validate'];
+    $form_validate = true;
+  }
+  else {
+    $validators = array();
+    $form_validate = false;
+  }
+
+  if (!$form_validate || (!module_exists('ldapauth') && !module_exists('logintoboggan'))) {
+    $validators[] = 'user_login_name_validate';
+  }
+  if (!$form_validate || !module_exists('ldapauth')) {
+    $validators[] = 'user_login_authenticate_validate';
+  }
+  $validators[] = 'phpbbforum_login_authenticate_validate';
+  $validators[] = 'user_login_final_validate';
+
+  return $validators;
+}
+
+/**
+ * A validate handler on the login form. Check supplied username/password
+ * against local users table. If successful, sets the global $user object.
+ */
+function phpbbforum_login_authenticate_validate($form, &$form_state) {
+  global $user;
+  if (!$user->uid) {
+    $pass = trim($form_state['values']['pass']);
+    if (!empty($pass)) {
+      phpbbforum_external_login_register($form_state['values']['name'], $pass);
+      if ($user->uid) {
+        user_authenticate_finalize($form_state['values']);
+      }
+    }
+  }
+}
+
+function phpbbforum_ldapauth_login_validate($form, &$form_state) {
+  global $user;
+  if (module_exists('ldapauth')) {
+    if (!$user->uid) {
+      $pass = trim($form_state['values']['pass']);
+      if (!empty($pass)) {
+        ldapauth_login_validate($form, $form_state);
+      }
+    }
+  }
+}
+
+
+function phpbbforum_external_login_register($login, $passwd) {
+  global $phpbb_config, $phpbb_user, $user;
+
+  $login = trim($login);
+  if (empty($login)) {
+    return false;
+  }
+
+  //if (module_exists('openid')) {
+  if (strtolower(substr($login, 0, 7)) == 'http://') {
+    return false;
+  }
+  //}
+
+  if (!_phpbbforum_settings()) {
+    return false;
+  }
+
+  $var = array('%name' => $login);
+
+  $email = $phpbb_user->data['user_email'];
+  // Load user to see if it was previously registered
+  if (!empty($passwd)) {
+    $account = user_load(array('name' => $login));
+    if (!empty($account->uid)) {
+      $email = $account->mail;
+    }
+    /*
+     elseif (strpos($login, "@") !== false) {
+     $account = user_load(array('mail' => $login));
+     if ($account->uid) {
+     $email = $login;
+     $login = $account->name;
+     }
+     }
+     */
+  }
+  
+  if (!empty($passwd) && !phpbb_api_get_user($login, $passwd)) {
+    $message = 'The phpBB username %name is not found in phpBB.';
+    //_phpbbforum_watchdog($message, array('%name' => $login));
+    _phpbbforum_set_message($message, $var);
+    return false; // user not found
+  }
+
+  if ($phpbb_user->data['is_bot'] || $phpbb_user->data['user_type'] == USER_IGNORE) {
+    return false; // user not found
+  }
+
+  $inactive = ($phpbb_user->data['user_type'] == USER_INACTIVE) ? true : false;
+  if ($inactive) {
+    $message = 'The phpBB username %name is inactive in phpBB.';
+    //_phpbbforum_watchdog($message, $var);
+    _phpbbforum_set_message($message, $var);
+    return false; // user not found
+  }
+
+  if (variable_get('phpbbforum_user_ban', 0) && phpbb_is_banned()) {
+    $message = 'The phpBB username %name is banned in phpBB.';
+    _phpbbforum_watchdog($message, $var);
+    _phpbbforum_set_message($message, $var);
+    return false;
+  }
+
+  $email = $phpbb_user->data['user_email'];
+
+  // Load user to see if it was previously registered
+  if (!is_object($account)) {
+    $account = user_load(array('name' => $login));
+  }
+  if (!empty($account)) {
+    if (user_is_blocked($login) || drupal_is_denied('user', $login)) {
+      _phpbbforum_watchdog('The phpBB username= %name has not been activated or is blocked.', $var);
+      return false;
+    }
+    elseif (!_phpbbforum_check_admins($account)) {
+      return false;
+    }
+    elseif (!_phpbbforum_check_username_account($account->name, $login)) {
+      _phpbbforum_watchdog('The phpBB username %name is not allowed.', $var);
+      return false;
+    }
+  }
+
+  if (empty($account->uid)) { // Register new user
+    if (db_result(db_query("SELECT uid FROM {users} WHERE name = '%s'", $login))) {
+      $message = 'The phpBB username %name has already been taken by another user.';
+      //_phpbbforum_watchdog($message, $var);
+      _phpbbforum_set_message($message, $var);
+      return false;
+    }
+    if (strpos($login, "@") !== false && db_result(db_query("SELECT uid FROM {users} WHERE LOWER(mail) = LOWER('%s')", $login))) {
+      $message = 'The phpBB username %name has already been taken by another user.';
+      //_phpbbforum_watchdog($message, $var);
+      _phpbbforum_set_message($message, $var);
+      return false;
+    }
+    if (!empty($email)) {
+      if (db_result(db_query("SELECT uid FROM {users} WHERE LOWER(mail) = LOWER('%s')", $email))) {
+        $message = 'The phpBB username %name has already been taken by another user.';
+        //_phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+        return false;
+      }
+      if (db_result(db_query("SELECT uid FROM {users} WHERE name = '%s'", $email))) {
+        $message = 'The phpBB username %name has already been taken by another user.';
+        //_phpbbforum_watchdog($message, $var);
+        _phpbbforum_set_message($message, $var);
+        return false;
+      }
+
+      $status = 1;
+      $user_roles = user_roles(TRUE);
+      $rid = variable_get('phpbbforum_user_role', DRUPAL_AUTHENTICATED_RID);
+      if (!empty($rid) && $rid != DRUPAL_AUTHENTICATED_RID && $rid != DRUPAL_ANONYMOUS_RID && !empty($user_roles[$rid])) {
+        $rname = $user_roles[$rid];
+        $roles = array($rid => $rname);
+      }
+      else {
+        $roles = null;
+      }
+
+      $account = user_save('', array(
+        'name' => $login,
+        'mail' => $email,
+        'timezone' => $phpbb_user->data['user_timezone'] * 60 * 60,
+        'init' => $email,
+        'status' => $status,
+        'roles' => $roles,
+      ));
+    }
+
+    if (!$account) {
+      //drupal_set_message(t("Error saving user account."), 'error');
+      return false;
+    }
+    //$message = 'Successfully registered new user: %name.';
+    $message = 'New user: %name (%email).';
+    $var = array(
+      '%name' => $login,
+      '%email' => $email,
+    );
+    _phpbbforum_watchdog($message, $var, WATCHDOG_NOTICE, l('edit', 'user/' . $account->uid . '/edit'));
+    _phpbbforum_set_message($message, $var);
+
+  }
+
+  if ($account->status == 0 && empty($passwd)) {
+    //_phpbbforum_watchdog('The phpBB username: %name has not been activated or is blocked.', $var);
+    return false;
+  }
+
+  //variable_set('phpbbforum_user_login_external', 1);
+  // Update changed user settings
+  phpbbforum_update_user('login2', PHPBB_SYNC_TO_DRUPAL, $account, '', $passwd, $email);
+  if (!empty($passwd)) {
+    if (phpbb_api_get_user($login, $passwd)) {
+      variable_set('phpbbforum_user_login', 1);
+    }
+  }
+
+  $user = $account;
+
+  $message = 'Successfully authenticated from phpBB.';
+  //_phpbbforum_watchdog($message);
+  _phpbbforum_set_message(t($message));
+
+  return true;
+}
+
+
+function _phpbbforum_authenticate_user() {
+  global $phpbb_user, $user;
+
+  $authenticated = phpbb_api_authenticate_user();
+
+  if ($authenticated && ($phpbb_user->data['is_bot'] || $phpbb_user->data['user_type'] == USER_IGNORE)) {
+    return;
+  }
+
+  if ($user->uid == 0) {
+
+    if ($authenticated) {
+      _phpbbforum_login_external();
+    }
+  }
+  else {
+    /*
+     if ($authenticated && $user->name != $phpbb_user->data['username']) {
+     _phpbbforum_drupal_logout();
+     }
+     else
+     */
+    if (!$authenticated && variable_get('phpbbforum_user_login', 0)) {
+      if (variable_get('phpbbforum_qookie_test', 0) && phpbb_api_get_user($user->name, '')) {
+        if (!PHPBB_DISABLE_AUTO_LOGOUT) {
+          _phpbbforum_drupal_logout();
+        }
+      }
+    }
+    elseif (variable_get('phpbbforum_user_ban', 0) && $user->uid != 1 && phpbb_api_get_user($user->name, '') && phpbb_is_banned()) {
+      if (!PHPBB_DISABLE_AUTO_LOGOUT) {
+        _phpbbforum_drupal_logout();
+      }
+    }
+  }
+}
+
+
+function _phpbbforum_user_logout($redirect = '') {
+  global $user;
+
+  watchdog('user', 'Session closed for %name.', array('%name' => $user->name));
+
+  // Destroy the current session:
+  session_destroy();
+  module_invoke_all('user', 'logout', NULL, $user);
+
+  // Load the anonymous user
+  $user = drupal_anonymous_user();
+
+  if ($redirect == '') {
+    $redirect = variable_get('site_frontpage', '');
+  }
+  drupal_goto($redirect);
+}
+
+
+function _phpbbforum_drupal_logout($redirect = '') {
+  global $phpbb_user, $user;
+  $activated = true; //($phpbb_user->data['user_type'] == USER_INACTIVE || $phpbb_user->data['user_type'] == USER_IGNORE) ? false : true;
+  if ($activated) {
+    _phpbbforum_watchdog('Session closed for %name.', array('%name' => $user->name));
+    _phpbbforum_user_logout($redirect);
+    //variable_set('phpbbforum_user_login', 0);
+  }
+  return $activated;
+}
+
+
+function _phpbbforum_drupal_login() {
+  phpbb_api_session_begin();
+  global $phpbb_user, $user;
+  // Try to log in the user locally. Don't set $user unless successful.'pass' => $pass,
+  $username = $phpbb_user->data['username'];
+  $var = array('%name' => $username);
+  if (!_phpbbforum_check_username($username)) {
+    _phpbbforum_watchdog('The phpBB username %name is not allowed.', $var);
+    return false;
+  }
+  $account = user_load(array('name' => $username));
+  if ($account) {
+    if (user_is_blocked($username) || drupal_is_denied('user', $username)) {
+      _phpbbforum_watchdog('The phpBB username= %name has not been activated or is blocked.', $var);
+      return false;
+    }
+    elseif (!_phpbbforum_check_admins($account)) {
+      return false;
+    }
+    elseif (!_phpbbforum_check_username_account($account->name, $username)) {
+      _phpbbforum_watchdog('The phpBB username %name is not allowed.', $var);
+      return false;
+    }
+    
+    $user = $account;
+    $edit['name'] = $username;
+
+    _phpbbforum_watchdog('Session opened for %name.', array('%name' => $user->name));
+    // Update the user table timestamp noting user has logged in.
+    // This is also used to invalidate one-time login links.
+    $user->login = time();
+    db_query("UPDATE {users} SET login = %d WHERE uid = %d", $user->login, $user->uid);
+
+    // Regenerate the session ID to prevent against session fixation attacks.
+    sess_regenerate();
+    user_module_invoke('login', $edit, $user);
+
+    variable_set('phpbbforum_user_login', 1);
+    // Update changed user settings
+    phpbbforum_update_user('login2', PHPBB_SYNC_TO_DRUPAL, $account, '', '', $account->mail);
+  }
+  elseif (variable_get('phpbbforum_user_login_external', 1)) {
+    phpbbforum_external_login_register($username, '');
+  }
+
+  return true;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Implements _phpbbforum_check_admins().
+ */
+function _phpbbforum_check_admins($account) {
+  if ($account->uid == 1) {
+    return false;
+  }
+  if (in_array("administrator", $account->roles)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Implements _phpbbforum_check_username().
+ */
+function _phpbbforum_check_username($username) {
+  /*$ascii = preg_match('#^[\x01-\x7F]+$#u', $username);
+  $nonascii = preg_match('#^[А-Яа-яЁё]+$#u', $username);
+  if ($ascii && $nonascii) {
+    return false;
+  }*/
+  return true;
+}
+
+/**
+ * Implements _phpbbforum_check_username_account().
+ */
+function _phpbbforum_check_username_account($name, $username) {
+  $lowername = drupal_strtolower($name);
+  $lowerusername = drupal_strtolower($username);
+  if ($lowername == $lowerusername) {
+    //if (strcoll($lowername, $username) == 0) {
+    return true;
+  }
+  return false;
+}

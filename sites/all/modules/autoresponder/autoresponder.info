@@ -1,0 +1,13 @@
+; $Id $
+name = Autoresponder
+description = Allow a site visitor to sign up for a series of emails sent each day via a cron job.
+core = 6.x 
+dependencies[] = mimemail 
+version = 6.x-1.x-dev 
+
+; Information added by drupal.org packaging script on 2010-02-22
+version = "6.x-1.0-alpha1"
+core = "6.x"
+project = "autoresponder"
+datestamp = "1266874803"
+

@@ -1,0 +1,15 @@
+<?php
+
+
+function PMI_tweaks_install() {
+  $weight = (int) db_result(db_query("SELECT weight
+      FROM {system}
+      WHERE name = 'userloginbar'
+       AND type = 'module';"));
+  db_query("UPDATE {system}
+    SET weight = %d
+    WHERE name = 'pmi_tweaks'
+      AND type = 'module';",
+    $weight + 5
+  );
+}

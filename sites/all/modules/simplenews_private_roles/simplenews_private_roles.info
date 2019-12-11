@@ -1,0 +1,12 @@
+;$Id:$
+name = Simplenews Private Roles
+description = Control access to Simplenews newsletters by role
+package = Mail
+core = 6.x
+dependencies[] = simplenews
+; Information added by drupal.org packaging script on 2011-05-20
+version = "6.x-1.2"
+core = "6.x"
+project = "simplenews_private_roles"
+datestamp = "1305887216"
+
